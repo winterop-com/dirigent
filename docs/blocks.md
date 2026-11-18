@@ -811,7 +811,7 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 | `topic` | `string` | yes |  | The topic to read. |
 | `group_id` | `string or null` |  | `null` | The consumer group to commit through, or unset to track offsets in the cursor alone. |
 | `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only, and under a `sensor` source to its first poke only; after that the cursor says where to read from. |
-| `min_messages` | `integer` |  | `1` | How many messages a batch needs before the sensor succeeds. Below it the poke parks, keeping the offsets it read so the next poke carries on from there. |
+| `min_messages` | `integer` |  | `1` | How many messages a batch needs before the sensor succeeds. Below it the poke parks where it began, so the next poke reads those messages again together with whatever has arrived. |
 | `max_messages` | `integer` |  | `100` | The most messages one poke takes, which bounds the output a step carries. |
 | `poll_timeout` | `string (humane-duration)` |  | `"5s"` | How long one poke waits on the broker before answering with what it has, such as `5s`. |
 | `poll_every` | `string (humane-duration) or null` |  | `null` | How long to park between pokes; unset leaves the cadence to the step's own `poll`. |

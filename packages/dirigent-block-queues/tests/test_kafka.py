@@ -279,15 +279,23 @@ async def test_a_batch_at_the_minimum_succeeds_and_reports_where_it_ended(
     assert output.cursor == {"0": 2}, "an offset is the next one to read"
 
 
-async def test_a_batch_below_the_minimum_parks_with_the_offsets_it_read(
+async def test_a_batch_below_the_minimum_parks_where_it_began_and_takes_those_messages_later(
     ctx: FakeContext, cluster: FakeConsumer
 ) -> None:
     cluster.log[0] = [Record(0, b'{"id": 1}')]
+    sensor = KafkaConsumeSensor()
+    watched = connected(ctx)
 
-    parked = await KafkaConsumeSensor().poke(config(start="earliest", min_messages=3), connected(ctx).as_context())
+    parked = await sensor.poke(config(start="earliest", min_messages=2), watched.as_context())
 
     assert isinstance(parked, NotYet)
-    assert parked.cursor == {"offsets": {"0": 1}}, "the next poke carries on rather than reading it again"
+    assert parked.cursor == {"offsets": {"0": 0}}, "the message read stays ahead of the cursor"
+    watched.cursor = parked.cursor
+    cluster.log[0].append(Record(1, b'{"id": 2}'))
+    output = await sensor.poke(config(start="earliest", min_messages=2), watched.as_context())
+
+    assert isinstance(output, KafkaConsumeOutput)
+    assert [message.offset for message in output.messages] == [0, 1]
 
 
 async def test_a_poke_reads_on_from_the_cursor_it_was_handed(ctx: FakeContext, cluster: FakeConsumer) -> None:
@@ -467,6 +475,7 @@ async def test_a_group_does_not_commit_a_poke_that_parked(ctx: FakeContext, clus
 
     assert isinstance(parked, NotYet)
     assert cluster.commits == [], "an uncommitted batch is read again rather than lost"
+    assert parked.cursor == {"offsets": {"0": 0}}, "the cursor stays before the message it read"
 
 
 async def test_a_group_poke_that_parked_leaves_its_place_in_the_cursor(ctx: FakeContext, cluster: FakeConsumer) -> None:

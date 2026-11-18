@@ -306,8 +306,8 @@ class QueueDepth(Sensor[QueueDepthConfig, QueueDepthOutput]):
         if not messages:
             return NotYet(message=f"nothing past offset {seen}")
         if len(messages) < config.min_messages:
-            # Keep the ground already covered, so the next poke does not read it again.
-            return NotYet(cursor={"offset": seen + len(messages)}, next_poll_in=config.poll_every)
+            # No cursor leaves the stored one, so the next poke reads these again with what arrives.
+            return NotYet(message=f"{len(messages)} of {config.min_messages}", next_poll_in=config.poll_every)
         return QueueDepthOutput(messages=messages, count=len(messages))
 ```
 
