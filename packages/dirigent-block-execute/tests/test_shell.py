@@ -392,6 +392,21 @@ def _alive(pid: int) -> bool:
     return True
 
 
+async def _gone(pid: int, *, seconds: float = 5.0) -> bool:
+    """Whether a pid stops naming a live process within ``seconds``.
+
+    A group kill lands asynchronously, and a killed child reparented to init stays a zombie,
+    which signal 0 still reaches, until init reaps it.
+    """
+    import asyncio
+
+    for _ in range(int(seconds / 0.1)):
+        if not _alive(pid):
+            return True
+        await asyncio.sleep(0.1)
+    return not _alive(pid)
+
+
 @pytest.mark.skipif(os.name != "posix", reason="process groups are a posix notion")
 async def test_a_backgrounded_child_does_not_outlive_the_shell_that_started_it(local_ctx: FakeContext) -> None:
     """The shell exits 0 the moment it has backgrounded its work, and the work keeps running.
@@ -429,7 +444,7 @@ async def test_a_child_left_holding_the_pipes_does_not_hold_the_step(local_ctx: 
     assert time.monotonic() - started < 10
     assert output.exit_code == 0
     assert output.stdout == "before\nafter\n"
-    assert not _alive(int(pidfile.read_text().strip()))
+    assert await _gone(int(pidfile.read_text().strip())), "the child holding the pipes outlived the step"
     assert "they were killed" in " ".join(local_ctx.log.messages())
 
 
