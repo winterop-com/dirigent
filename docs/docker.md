@@ -222,7 +222,9 @@ a worker's file out. A target in the work directory is opened the same way and f
 `execute.output_target_refused`. A compose file, an env file, a build context or a Dockerfile named
 by a path that a link leads outside the work directory fails as
 `execute.path_leaves_the_work_directory`, so a repository a step checked out cannot hand one of the
-worker's own files to the CLI.
+worker's own files to the CLI. The same holds for `docker.run`'s two mount directories, which the
+daemon would follow a link out of, and an input is staged without following a link where it
+lands, failing as `execute.input_target_refused` rather than overwriting what the link names.
 
 On the compose stack the daemon mounts that directory at the same path the worker sees it at,
 because a bind is resolved on the daemon's filesystem rather than the worker's. It is local to

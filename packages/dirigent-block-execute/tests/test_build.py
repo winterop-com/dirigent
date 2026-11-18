@@ -451,7 +451,7 @@ async def test_a_build_against_a_connection_reaches_the_daemon_it_names(
         Path(str(kwargs["directory"])).mkdir(parents=True, exist_ok=True)
         argv = cast("list[str]", kwargs["argv"])
         Path(argv[argv.index("--iidfile") + 1]).write_text(IMAGE_ID)
-        return Ran(0, _empty(), _empty(), "file://out", "file://err")
+        return Ran(code=0, out=_empty(), err=_empty(), stdout_uri="file://out", stderr_uri="file://err")
 
     monkeypatch.setattr("dirigent_block_execute.subprocess.run", fake_run)
     scripted_exec(monkeypatch, build_and_inspect)
@@ -554,3 +554,18 @@ async def test_a_context_or_dockerfile_a_link_leads_out_of_the_work_directory_is
     assert raised.value.code == "execute.path_leaves_the_work_directory"
     assert raised.value.error_class is ErrorClass.REJECTED
     assert calls == []
+
+
+@pytest.mark.parametrize(("printed", "size"), [(b"1234\n", 1234), ("²\n".encode(), 0), ("٣٠\n".encode(), 0)])
+async def test_an_image_size_is_read_from_ascii_digits_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, printed: bytes, size: int
+) -> None:
+    from dirigent_block_execute.build import _image_size  # pyright: ignore[reportPrivateUsage] - the parse under test
+
+    async def inspected(**_: Any) -> tuple[int, bytes, bytes]:
+        return 0, printed, b""
+
+    monkeypatch.setattr("dirigent_block_execute.subprocess.output", inspected)
+    config = DockerBuildConfig(context=".", tags=["app:1"])
+
+    assert await _image_size(config, "sha256:abc", tmp_path, {}, 5.0) == size
