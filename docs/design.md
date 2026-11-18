@@ -1201,7 +1201,7 @@ GET           /api/v1/runs/{id}/attempts     # paged in creation order; filters:
 POST          /api/v1/runs/{id}/$cancel
 POST          /api/v1/runs/{id}/$rerun       # same params and source input; version: pinned | current
 GET           /api/v1/attempts/{id}          # one attempt by its id alone, with its run_id, pipeline and item
-POST          /api/v1/attempts/{id}/$retry   # Idempotency-Key header required
+POST          /api/v1/attempts/{id}/$retry   # Idempotency-Key header required, at most 255 characters
 GET           /api/v1/runs/{id}/$logs        # a page like every listing; ?follow=sse tails it
 GET           /api/v1/runs/{id}/$events      # the whole run as one SSE stream, for a watcher
 GET           /api/v1/runs/{id}/$report      # a summary fit to paste into a ticket
