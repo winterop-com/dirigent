@@ -61,6 +61,25 @@ async def test_without_a_key_an_item_is_named_by_its_whole_element(sessions: Any
     assert [item.item_key for item in await items_of(sessions, run.id, "spread")] == ["oslo", "bergen"]
 
 
+async def test_without_a_key_an_element_that_is_not_a_string_is_named_by_its_json(
+    sessions: Any, services: EngineServices
+) -> None:
+    elements: list[Any] = [{"name": "Chris Curtis", "age": 41}, ["a", "b"], 3, 2.5, True, None, "ø"]
+    definition = PipelineDefinition(
+        code="unkeyed", steps=steps(spread=StepDefinition(block="test.echo", for_each=elements))
+    )
+    run = await start(sessions, services, definition)
+    assert [item.item_key for item in await items_of(sessions, run.id, "spread")] == [
+        '{"name":"Chris Curtis","age":41}',
+        '["a","b"]',
+        "3",
+        "2.5",
+        "true",
+        "null",
+        "ø",
+    ]
+
+
 @pytest.mark.parametrize(
     ("targets", "code", "params"),
     [

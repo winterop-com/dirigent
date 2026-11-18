@@ -7,6 +7,7 @@ resolves the list against the outputs the run already holds, writes the items an
 attempts, and deletes the gate, all in the transaction that readied it.
 """
 
+import json
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Final, cast
@@ -82,11 +83,13 @@ class KeyRefused(Exception):
 def keys_of(name: str, step: StepDefinition, elements: Sequence[JsonValue]) -> list[str]:
     """Name each element of a grid: by the field its step's ``key`` names, else by the whole element.
 
+    A whole element that is a string is named by its text, and any other by its compact JSON.
+
     A key that an element lacks, or that is not a string or a number, is refused, and so is a
     key two elements share, since a key is what an element is told apart by.
     """
     if step.key is None:
-        return [str(element)[:KEY_CAP] for element in elements]
+        return [_whole(element)[:KEY_CAP] for element in elements]
     keys: list[str] = []
     seen: dict[str, int] = {}
     for index, element in enumerate(elements):
@@ -101,6 +104,13 @@ def keys_of(name: str, step: StepDefinition, elements: Sequence[JsonValue]) -> l
         seen[key] = index
         keys.append(key)
     return keys
+
+
+def _whole(element: JsonValue) -> str:
+    """Read an element as the name it goes by when its step declares no key."""
+    if isinstance(element, str):
+        return element
+    return json.dumps(element, separators=(",", ":"), ensure_ascii=False)
 
 
 def _at_path(element: JsonValue, path: str) -> JsonValue:

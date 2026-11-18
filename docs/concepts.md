@@ -446,8 +446,9 @@ together, under a rule other than `all_success`, and when the step reads the gri
 holds: an item-wise step's grid is written the moment the grid it adopts is, rather than once
 that grid has settled, and each of its items then waits for its own match.
 
-An item is named by its element, which reads well for a list of words and badly for a list of
-records. `key: code` names each item by its element's `code` instead (`key: site.code` reaches a
+An item is named by its element: a string by its text, anything else by its compact JSON, so
+a record is `{"code":"chap-eu","url":"..."}`. That reads well for a list of words and badly for
+a list of records. `key: code` names each item by its element's `code` instead (`key: site.code` reaches a
 nested one), so a target listed as `{code: chap-eu, url: ...}` is `chap-eu` in the run grid, in
 the per-element stats and in a log line. A step mapping over another's grid with
 `${steps.<name>.items}` takes that step's names. A key every element must carry, as a string
