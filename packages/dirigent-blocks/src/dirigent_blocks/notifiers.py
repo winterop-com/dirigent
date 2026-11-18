@@ -36,6 +36,7 @@ from dirigent_common import (
     HealthReport,
     PlainHeaders,
     PlainUrl,
+    SecretUrl,
     credential_header_value,
     raised_detail,
     refuse_credential_in_two_places,
@@ -214,7 +215,7 @@ class SlackError(RuntimeError):
 class SlackNotifierConfig(BlockModel):
     """Which of Slack's two doors an alert goes through, and the credential for it."""
 
-    webhook_url: SecretStr | None = None
+    webhook_url: SecretUrl = None
     """A Slack incoming webhook. It carries the destination channel inside it, so it is both
     the address and the credential, and it is sealed as one."""
 
