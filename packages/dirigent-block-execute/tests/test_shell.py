@@ -1,6 +1,8 @@
 """Tests for shell.run: the block that runs code on the worker, and what contains it."""
 
 import os
+import subprocess
+import sys
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 from pathlib import Path
@@ -474,3 +476,47 @@ async def test_a_program_not_on_the_path_is_a_rejection_naming_it(local_ctx: Fak
     assert raised.value.code == "execute.program_not_found"
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "dirigent-no-such-program is not on the worker's PATH" in str(raised.value)
+
+
+#: Run as a separate interpreter, because a subreaper is a property of the whole process.
+SUBREAPER_SCENARIO = """
+import asyncio, ctypes, os, pathlib
+from dirigent_block_execute.subprocess import end, group_of
+
+PR_SET_CHILD_SUBREAPER = 36
+assert ctypes.CDLL(None, use_errno=True).prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) == 0
+
+def children():
+    mine = str(os.getpid())
+    found = []
+    for entry in pathlib.Path("/proc").iterdir():
+        if entry.name.isascii() and entry.name.isdigit():
+            try:
+                lines = (entry / "status").read_text().splitlines()
+            except OSError:
+                continue
+            fields = dict(line.split(":\\t", 1) for line in lines if ":\\t" in line)
+            if fields.get("PPid") == mine:
+                found.append(fields["State"])
+    return found
+
+async def main():
+    process = await asyncio.create_subprocess_shell(
+        "sleep 30 >/dev/null 2>&1 & sleep 30 >/dev/null 2>&1 & exit 0", start_new_session=True
+    )
+    pgid = group_of(process)
+    await process.wait()
+    await end(process, pgid)
+    print(len(children()))
+
+asyncio.run(main())
+"""
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="a child subreaper is a Linux process attribute")
+def test_the_members_of_a_killed_group_handed_to_the_worker_are_reaped() -> None:
+    """In a container the worker is the first process, so a step's orphans become its children."""
+    result = subprocess.run(  # noqa: S603 - a fixed interpreter and script
+        [sys.executable, "-c", SUBREAPER_SCENARIO], capture_output=True, text=True, check=True, timeout=30
+    )
+    assert result.stdout.strip() == "0", result.stderr

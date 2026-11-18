@@ -66,6 +66,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY packages/ packages/
 COPY README.md ./
 
+# The frontend stage built the bundle from these sources; the runtime needs only the bundle.
+RUN rm -rf packages/dirigent-server/frontend
+
 # The bundle goes where the wheel carries it, so the installed dirigent-server serves the UI
 # from its own package directory rather than from a checkout that is not in this image.
 COPY --from=frontend /frontend/dist/ packages/dirigent-server/src/dirigent_server/static/

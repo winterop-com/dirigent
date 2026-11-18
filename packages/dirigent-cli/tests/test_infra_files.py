@@ -1,5 +1,6 @@
 """What the infrastructure files promise, checked without starting any of them."""
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any, Final, cast
 import pytest
 import yaml
 
-from dirigent_cli.project import InitChoices, compose_document, scaffold
+from dirigent_cli.project import InitChoices, compose_document, env_document, scaffold
 
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 
@@ -147,3 +148,69 @@ def test_anything_else_is_refused_by_name(packs: str) -> None:
     assert result.returncode != 0
     assert "DIRIGENT_PACKS" in result.stderr
     assert "is not pinned" in result.stderr
+
+
+#: An image reference: a ``${VARIABLE:-default}`` keeps its default, and the stack's own builds are skipped.
+IMAGE_REFERENCE: Final = re.compile(r"(?:\$\{(?P<variable>[A-Z0-9_]+):-)?(?P<reference>[^\s}]+)\}?")
+
+#: Images built from this repository or from a scaffolded Dockerfile, which no registry holds.
+BUILT_HERE: Final = {"dirigent:local", "dirigent-instance:local"}
+
+
+def _images(text: str) -> list[tuple[str | None, str]]:
+    """Every ``image:`` line of a compose document, as (variable, reference)."""
+    found: list[tuple[str | None, str]] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("image:"):
+            match = IMAGE_REFERENCE.fullmatch(stripped.removeprefix("image:").strip())
+            assert match is not None, line
+            if match["reference"] not in BUILT_HERE:
+                found.append((match["variable"], match["reference"]))
+    return found
+
+
+def _environment_images(text: str) -> dict[str, str]:
+    return {
+        name: value
+        for line in text.splitlines()
+        if not line.startswith("#") and "=" in line
+        for name, value in [line.split("=", 1)]
+        if name.endswith("_IMAGE") and name != "DIRIGENT_IMAGE"
+    }
+
+
+def test_every_image_a_stack_pulls_is_pinned_by_digest_and_named_alike_everywhere() -> None:
+    choices = InitChoices(
+        template="compose", services=("s3", "docker", "kafka", "rabbitmq"), password="a-long-enough-password"
+    )
+    composed = [(path.name, path.read_text()) for path in sorted((REPO_ROOT / "infra").glob("compose*.yaml"))]
+    composed.append(("the scaffold", compose_document(choices, "1.2.3")))
+    environments = [
+        (".env.example", (REPO_ROOT / ".env.example").read_text()),
+        ("the scaffolded .env", env_document(choices, "1.2.3", "key")),
+    ]
+    by_repository: dict[str, set[str]] = {}
+    by_variable: dict[str, set[str]] = {}
+    for where, text in composed:
+        for variable, reference in _images(text):
+            assert re.search(r"@sha256:[0-9a-f]{64}$", reference), f"{where} pulls {reference} by tag alone"
+            by_repository.setdefault(reference.split("@")[0], set()).add(reference)
+            if variable is not None:
+                by_variable.setdefault(variable, set()).add(reference)
+    for where, text in environments:
+        for variable, reference in _environment_images(text).items():
+            assert variable in by_variable, f"{where} sets {variable}, which no stack reads"
+            by_variable[variable].add(reference)
+    assert {name: refs for name, refs in by_repository.items() if len(refs) > 1} == {}
+    assert {name: refs for name, refs in by_variable.items() if len(refs) > 1} == {}
+
+
+def test_playwright_is_one_version_everywhere() -> None:
+    made = re.search(r"^PLAYWRIGHT_VERSION \?= (\S+)$", (REPO_ROOT / "Makefile").read_text(), re.MULTILINE)
+    assert made is not None
+    version = made[1]
+    pages = (REPO_ROOT / ".github" / "workflows" / "pages.yaml").read_text()
+    assert set(re.findall(r"playwright==(\S+)", pages)) == {version}
+    frontend = json.loads((REPO_ROOT / "packages" / "dirigent-server" / "frontend" / "package.json").read_text())
+    assert frontend["devDependencies"]["@playwright/test"].lstrip("^~") == version

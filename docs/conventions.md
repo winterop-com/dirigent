@@ -277,6 +277,12 @@ The required status `check` waits on every job in the workflow: the static gate,
 and each lane below, the docker lane included. A runner without a Docker socket skips the
 docker lane's tests rather than failing them.
 
+The site is published from `main` only after `ci` has passed on that commit. Every image a stack
+or a lane runs is pinned by digest, and the compose files, `.env.example` and the stack `dg init`
+writes name each one alike, which `test_infra_files.py` holds; Dependabot proposes the bumps for
+the actions, the lock and the images. The Docker Hub token reaches the sign-in step of a job and
+no other, and the release build restores no cache.
+
 `load` is the exception that never runs in the gate. `make load` fans a run out over fifty
 attempts logging five thousand lines each, against a real PostgreSQL, and writes what the log
 path cost -- rows a second, flush sizes and durations, how long a line takes to become

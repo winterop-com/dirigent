@@ -802,7 +802,10 @@ block. A command is usually `sh -c`, so killing only the process that was starte
 leave the children doing the work still running. The step ends when the command exits, not
 when its output closes: a child left running in the background (`server &`) holds the output
 open, so two seconds after the command exits the session is killed and the step ends with the
-command's exit code, logging that it killed what was left.
+command's exit code, logging that it killed what was left. In the image the worker is the
+container's first process, so what the session left behind is handed to it once its parent
+exits; the worker waits for those processes after the kill, so none stays a zombie. A process
+that started a session of its own (`setsid`) has left the command's session and is not killed.
 
 ### What an allowlisted command can still reach
 
