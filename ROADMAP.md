@@ -203,8 +203,8 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
   mentioned inside an output, with no row of their own. So the thing a person most wants --
   the fetched payload, the command's stdout -- is untracked, while the small JSON that merely
   names it is tracked. Three consequences: the API lists and serves only the small JSON, and
-  there is no `dg artifact` command at all; retention cannot clean up files it holds no
-  reference to; and a run cannot answer what it produced.
+  there is no `dg artifact` command at all; retention clears what a run wrote under its own
+  prefix but not a file a block wrote anywhere else; and a run cannot answer what it produced.
   Which way to close it is genuinely open. Either a block DECLARES a URI as an output and the
   engine tracks, lists, retains and serves it -- which makes downloads, retention and the
   run view work from one concept -- or artifacts stay strictly the step's return value

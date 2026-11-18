@@ -180,7 +180,7 @@ ui-static: ui ## Put the built bundle where the server wheel packages it
 
 ui-wheel: ## Build the server wheel and prove it carries the UI bundle
 	@test -f packages/dirigent-server/src/dirigent_server/static/index.html \
-		|| { echo "Nothing to ship: run 'make ui' first."; exit 1; }
+		|| { echo "Nothing to ship: run 'make ui-static' first."; exit 1; }
 	rm -f dist/dirigent_server-*.whl
 	$(UV) build --wheel --package dirigent-server --out-dir dist
 	@unzip -l dist/dirigent_server-*.whl | grep -q 'dirigent_server/static/index.html' \

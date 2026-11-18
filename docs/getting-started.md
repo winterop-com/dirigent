@@ -547,8 +547,9 @@ enforced both when the run is created and again when a worker claims the step. S
 connection pool cannot cover the concurrency configured on top of it. Raise the pool or lower
 the concurrency; the reasoning is in [scaling workers](operations.md#scaling-workers).
 
-For anything else, `-v` shows the engine's own events and the API calls the CLI makes, and
-`-vv` shows everything:
+For anything else, `-v` shows the engine's own events and the API calls the CLI makes, `-vv`
+adds dirigent's debug lines, and `--debug-all` shows everything, every library's own logging
+included:
 
 ```bash
 dg -v run report-to-file --watch

@@ -19,7 +19,7 @@ Open them in this order:
    workers, the database, artifact storage, the `dg` CLI and `dirigent-mcp`, and how they talk.
 3. **L3 - Components**:
    - `L3_Server` - the API server: routes, auth, event streams, the endpoint intake, the reply
-     waiter, and the UI host.
+     waiter, the MCP endpoint, and the UI host.
    - `L3_Worker` - the engine and the worker: wake-ups, claim, executor, readiness and run
      status, run creation, recovery and deadline sweeps, polled and held sources, the alert
      dispatcher, the plugin host and the block contract.

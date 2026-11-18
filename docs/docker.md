@@ -153,7 +153,7 @@ dg connection create docker build-daemon \
 dg connection check build-daemon
 ```
 
-`tls_key` and `password` are **sealed**: encrypted at rest, redacted in every API response, and
+`tls_ca`, `tls_cert`, `tls_key` and `password` are **sealed**: encrypted at rest, redacted in every API response, and
 never an argument or an inherited variable. Each reaches the CLI and the Engine API as a 0600
 file in a 0700 directory in the system's temporary directory, outside the roots a sibling step
 can read -- the TLS triple as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step

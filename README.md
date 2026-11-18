@@ -187,7 +187,6 @@ None of this exists yet, and the order is roughly the order it is wanted in.
 - **AI blocks, and more of FHIR.** A step that asks a model against a schema its answer must
   fit, and beside the REST blocks `dirigent-fhir` ships: FHIRPath on the transform verbs, CQL
   and measures, and validation against a profile.
-- **Hardening.** Log batching under load.
 - **Scoped authorization.** Three instance-wide roles are the whole model today; there is no
   way to let a team run its own pipelines and nobody else's.
 
@@ -209,6 +208,7 @@ cp .env.example .env      # then set DIRIGENT_SECRET_KEY, the bootstrap admin pa
 docker compose --project-directory . -f infra/compose.yaml up --build
 
 export DG_URL=http://localhost:3333
+export DG_TOKEN=$(dg auth login --username admin | jq -r .token)   # asks for the bootstrap password
 dg apply examples/triggers/managed-and-manual.yaml
 dg schedule list managed-and-manual
 ```
