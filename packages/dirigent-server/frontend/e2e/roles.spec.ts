@@ -1,7 +1,19 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyExample, saysShut, seedUser, signIn, signInAs, signOut } from './support.ts'
+import {
+    apiPrefix,
+    applyDocument,
+    applyExample,
+    pageHead,
+    ranToCompletion,
+    saysShut,
+    seedUser,
+    signIn,
+    signInAs,
+    signOut,
+    startRun,
+} from './support.ts'
 
 /**
  * What a viewer is offered, and what a refused write looks like.
@@ -91,6 +103,65 @@ test('a viewer is offered no write control, and each shut one says why', async (
     await page.goto('/pipelines')
     const newPipeline = page.getByRole('button', { name: LABELS.pipelines.new })
     await saysShut(page, newPipeline, SHUT)
+})
+
+test("a viewer's palette Rerun is refused with the toolbar's sentence, and asks the server nothing", async ({
+    page,
+}) => {
+    await signIn(page)
+    await seedUser(page.request, VIEWER, VIEWER_PASSWORD, 'viewer')
+    await applyExample(page.request, 'examples/transform/std-convert-fan-out.yaml')
+    const runId = await startRun(page.request, 'std-convert-fan-out')
+    await ranToCompletion(page.request, runId)
+
+    await signOut(page)
+    await signInAs(page, VIEWER, VIEWER_PASSWORD)
+    const asked: string[] = []
+    page.on('request', (request) => {
+        if (new URL(request.url()).pathname.endsWith('/$rerun')) asked.push(request.url())
+    })
+
+    await page.goto(`/runs/${runId}`)
+    await saysShut(page, pageHead(page).getByRole('button', { name: LABELS.action.rerun, exact: true }), SHUT)
+
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.runs.rerun_action)
+    await page.getByRole('option', { name: LABELS.runs.rerun_action }).click()
+
+    await expect(page.locator('[data-sonner-toast]').getByText(SHUT, { exact: true })).toBeVisible()
+    expect(new URL(page.url()).pathname).toBe(`/runs/${runId}`)
+    expect(asked).toEqual([])
+})
+
+test("a viewer's palette Cancel is refused with the toolbar's sentence, and asks nothing", async ({
+    page,
+}) => {
+    await signIn(page)
+    await seedUser(page.request, VIEWER, VIEWER_PASSWORD, 'viewer')
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: 'e2e-role-wait',
+        steps: { wait: { block: 'time.sleep', config: { for: '60s' } } },
+    })
+    const runId = await startRun(page.request, 'e2e-role-wait')
+
+    await signOut(page)
+    await signInAs(page, VIEWER, VIEWER_PASSWORD)
+    const asked: string[] = []
+    page.on('request', (request) => {
+        if (new URL(request.url()).pathname.endsWith('/$cancel')) asked.push(request.url())
+    })
+
+    await page.goto(`/runs/${runId}`)
+    await expect(pageHead(page)).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.runs.cancel_action)
+    await page.getByRole('option', { name: LABELS.runs.cancel_action }).click()
+
+    await expect(page.locator('[data-sonner-toast]').getByText(SHUT, { exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    expect(asked).toEqual([])
 })
 
 test('a check the server refuses says so, and the row keeps what it had', async ({ page, baseURL }) => {

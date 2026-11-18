@@ -1392,6 +1392,8 @@ a pack's, is not checked and says nothing.
 The shell registers what is always there -- every screen the account is offered, the view rows,
 sign out. A screen registers what only it can do, from an effect, and returns the unregister so a
 row cannot outlive the screen that would carry it out. Re-registering an id replaces the row.
+**A row is shut wherever its toolbar control is**: it reads the same refusal, and a row that is
+offered but refused says that control's sentence as a toast rather than acting.
 
 The settings dialog is the same idea for a different surface: `src/lib/settings.ts` holds every row
 as a record -- what it is called, which category it is filed under, what else it can be found by --
@@ -2032,7 +2034,7 @@ verb folded into a menu carries its reason as a line under its entry.
 **Every write states its refusal, and there are two places to state one.** A dialog or a form
 has room beside the thing that was refused, and that is `components/Refusal`; a row's button and
 a panel's verb have none, and that is `sayRefusal`, the one toast this app raises about a
-request. A write whose rejection handler is a comment saying the row keeps what it had is a
+request. A run the toast names is named by its short id, as everywhere else. A write whose rejection handler is a comment saying the row keeps what it had is a
 write that failed in silence. **Nothing dismisses on a refusal**: a dialog that closed and a
 panel that emptied would both have said the request went through.
 

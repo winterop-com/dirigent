@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { ApiError, type Issue, type Problem } from '@/lib/api'
-import { local, problemsIn, refusalLine, refusalLines, refusalOf, said } from '@/lib/refusal'
+import { local, problemsIn, refusalLine, refusalLines, refusalOf, said, withShortRun } from '@/lib/refusal'
 import { contributedWording } from '@/lib/wording'
 
 /** One refusal as this server writes it: a status phrase for a title, and a sentence to act on. */
@@ -165,5 +165,25 @@ describe('the problems a failure lists', () => {
     test('a failure that lists nothing has no problems to draw', () => {
         expect(problemsIn({ detail: 'x' })).toEqual([])
         expect(problemsIn(null)).toEqual([])
+    })
+})
+
+describe('a run a refusal names', () => {
+    const run = '0193f1d2-7a4b-7c3e-9d2a-5e6f32ee6409'
+
+    test('is written as its short id', () => {
+        const refused = problem({
+            code: 'run.rerun_input_gone',
+            detail: `run ${run} no longer holds the input that entered it at 'source'`,
+            params: { run, step: "'source'" },
+        })
+        expect(refusalLine(withShortRun(refused))).toBe(
+            "Run 32ee6409 no longer holds the input that entered it at 'source'.",
+        )
+    })
+
+    test('leaves a refusal naming no run as it is', () => {
+        const refused = problem({ params: { step: 'source' } })
+        expect(withShortRun(refused)).toBe(refused)
     })
 })
