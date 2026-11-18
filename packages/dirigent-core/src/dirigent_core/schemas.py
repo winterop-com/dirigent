@@ -29,6 +29,7 @@ from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import Catalog, SchemaCheck, SchemaViolation
 from dirigent_common import (
     EvaluationOverrun,
+    EvaluationTooDeep,
     Issue,
     JsonMap,
     Unresolvable,
@@ -49,6 +50,7 @@ from dirigent_core.messages import (
     SCHEMA_NO_CODE,
     SCHEMA_REFERENCE_UNRESOLVED,
     SCHEMA_REFERENCED,
+    SCHEMA_VALUE_TOO_DEEP,
     SCHEMA_VALUE_UNCHECKED,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Schema
@@ -193,6 +195,8 @@ async def check_value(
         raise SchemaRefused(SCHEMA_REFERENCE_UNRESOLVED, ref=error.ref) from error
     except EvaluationOverrun as error:
         raise SchemaRefused(SCHEMA_VALUE_UNCHECKED, timeout=format_duration(error.within)) from error
+    except EvaluationTooDeep as error:
+        raise SchemaRefused(SCHEMA_VALUE_TOO_DEEP) from error
     finally:
         stopped.set()
     listed = [_violation(error) for error in errors[:MAX_VIOLATIONS]]

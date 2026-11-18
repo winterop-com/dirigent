@@ -150,7 +150,7 @@ async def test_a_failed_or_cancelled_child_fails_the_step_and_carries_its_reason
         await PipelineRunOperator().probe(handle_for(run_id), PipelineRunConfig(pipeline="child"), ctx.as_context())
 
     assert failure.value.code == "base.child_run_ended"
-    assert failure.value.error_class is ErrorClass.UNKNOWN
+    assert failure.value.error_class is (ErrorClass.REJECTED if state is RunState.CANCELLED else ErrorClass.UNKNOWN)
     assert failure.value.params["reason"] == "the load step failed"
     assert failure.value.params["status"] == state.value
     assert failure.value.params["child_error_code"] == "run.step_failed"

@@ -111,7 +111,8 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
         """Read where the child run has got to, and map its state onto this step's.
 
         A child that ended in a way that fails the step fails it with a code of its own,
-        naming the child run and what it settled as.
+        naming the child run and what it settled as. A failed child leaves the step to its
+        retry policy; a cancelled one fails it as rejected.
         """
         snapshot = await ctx.runs.snapshot(_run_id(handle))
         if snapshot is None:
@@ -137,6 +138,7 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
             case RunState.FAILED | RunState.CANCELLED:
                 raise BlockFailure(
                     CHILD_RUN_ENDED,
+                    error_class=ErrorClass.REJECTED if snapshot.state is RunState.CANCELLED else ErrorClass.UNKNOWN,
                     reason=snapshot.error or "no reason was recorded",
                     **_child_params(handle, snapshot),
                 )

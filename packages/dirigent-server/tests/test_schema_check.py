@@ -149,3 +149,19 @@ def test_a_pipeline_naming_a_schema_uses_the_ones_it_references(client: TestClie
     assert applied.status_code in (200, 201), applied.text
     assert client.get(f"{PREFIX}/schemas/reading").json()["used_by"] == ["wrapped-gate"]
     assert client.get(f"{PREFIX}/schemas/wrapper").json()["used_by"] == ["wrapped-gate"]
+
+
+def test_a_value_nesting_deeper_than_the_schema_can_be_followed_is_refused_rather_than_a_crash(
+    client: TestClient,
+) -> None:
+    chain = {
+        "$defs": {
+            "node": {"allOf": [{"anyOf": [{"type": "object", "properties": {"c": {"$ref": "#/$defs/hop"}}}]}]},
+            "hop": {"oneOf": [{"$ref": "#/$defs/node"}]},
+        },
+        "$ref": "#/$defs/node",
+    }
+    value: dict[str, Any] = {}
+    for _ in range(120):
+        value = {"c": value}
+    assert refused(client, 422, body=chain, value=value) == "schema.value_too_deep"

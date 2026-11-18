@@ -55,6 +55,9 @@ class _Holder(BaseModel):
         "X-Functions-Key",
         "Ocp-Apim-Subscription-Key",
         "Key",
+        "X-Passphrase",
+        "X-Pwd",
+        "X-JWT",
     ],
 )
 def test_a_name_that_carries_a_credential(name: str) -> None:
@@ -194,6 +197,8 @@ def test_a_query_map_keeps_a_page_token() -> None:
         ("https://host/x?page=1&api%5Fkey=DUMMYSECRET", "the api_key query parameter"),
         ("/x?token=DUMMYSECRET", "the token query parameter"),
         ("https://host/x#access_token=DUMMYSECRET", "the access_token query parameter"),
+        ("https://host/x?page=1;access_token=DUMMYSECRET", "the access_token query parameter"),
+        ("https://user:DUMMYSECRET@[::1/x", "cannot carry a user or a password"),
     ],
 )
 @pytest.mark.parametrize("field", ["url", "path"])
@@ -253,6 +258,10 @@ def test_a_url_is_shown_with_its_credential_values_replaced(url: str, shown: str
 
 def test_the_values_a_url_gives_credential_names_are_read_decoded() -> None:
     assert credential_parameter_values("https://h/x?token=a%2Bb&page=2&api_key=") == ["a+b"]
+
+
+def test_a_value_after_a_semicolon_is_read_as_its_own_pair() -> None:
+    assert credential_parameter_values("https://h/x?page=2;token=a%2Bb") == ["a+b"]
 
 
 class _Target(BaseModel):

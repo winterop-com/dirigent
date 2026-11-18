@@ -100,7 +100,13 @@ from dirigent_common.schema_references import (
     reference_targets,
     schema_code_of,
 )
-from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation, value_errors
+from dirigent_common.schema_values import (
+    EvaluationOverrun,
+    EvaluationTooDeep,
+    ValueValidator,
+    bounded_evaluation,
+    value_errors,
+)
 from dirigent_common.schemas import BlockModel, CredentialForm, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     FILLER,
@@ -136,6 +142,7 @@ __all__ = [
     "REDACTED",
     "BoundedLoader",
     "EvaluationOverrun",
+    "EvaluationTooDeep",
     "Unresolvable",
     "ValueValidator",
     "bounded_evaluation",

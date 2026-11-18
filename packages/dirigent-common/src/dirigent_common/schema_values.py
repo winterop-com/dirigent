@@ -47,6 +47,14 @@ class EvaluationOverrun(Exception):
         self.within = within
 
 
+class EvaluationTooDeep(Exception):
+    """An evaluation that followed a value and its schema deeper than the interpreter can recurse."""
+
+    def __init__(self) -> None:
+        """Say the value was not checked, rather than how deep the interpreter got."""
+        super().__init__("the value nests deeper than its schema can be followed")
+
+
 class _Bound:
     """When the current evaluation must stop, and the event that stops it sooner."""
 
@@ -354,13 +362,18 @@ def value_errors(
 
     Raises:
         EvaluationOverrun: The evaluation passed ``within``, or ``stopped`` was set.
+        EvaluationTooDeep: Each level of the value takes the schema through more references
+            than the interpreter's recursion can hold at that depth.
     """
     built: Callable[..., Any] = cast("Callable[..., Any]", ValueValidator)
     registry = LOCAL_REFERENCES if held is None else held_references(held)
     validator = built(schema, format_checker=format_checker, registry=registry)
     with bounded_evaluation(within, stopped):
         errors = cast("Iterator[ValidationError]", validator.iter_errors(value))
-        return sorted(errors, key=_where)
+        try:
+            return sorted(errors, key=_where)
+        except RecursionError as error:
+            raise EvaluationTooDeep from error
 
 
 def _where(error: ValidationError) -> str:
@@ -370,6 +383,7 @@ def _where(error: ValidationError) -> str:
 
 __all__ = [
     "EvaluationOverrun",
+    "EvaluationTooDeep",
     "ValueValidator",
     "bounded_evaluation",
     "canonical_json",

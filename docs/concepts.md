@@ -501,7 +501,10 @@ gaps below are as load-bearing as the features.
   decide: their output is data a later step reads, never a branch.
 - **No reusable step groups.** A document holds one flat `steps` map; there is no macro, no
   include, and no sub-DAG. Composing means `pipeline.run`, which starts a whole other
-  pipeline as a step. See `examples/composition/composition-parent.yaml`.
+  pipeline as a step. See `examples/composition/composition-parent.yaml`. A child that fails
+  fails the step as `base.child_run_ended`, which the step's retry policy may retry by starting
+  a new child; a child that is cancelled fails it the same way, classed `rejected`, so no retry
+  starts another.
 
 An expression layer is on the roadmap rather than ruled out; the trigger for adding one is a
 real pipeline that cannot be written without it.

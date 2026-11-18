@@ -362,6 +362,24 @@ async def test_a_schema_whose_cost_doubles_with_depth_fails_the_step_at_its_time
     assert raised.value.code == "base.value_unchecked"
 
 
+async def test_a_value_nesting_deeper_than_its_schema_can_be_followed_is_rejected_by_name(ctx: FakeContext) -> None:
+    """Each level passes four keywords and two references, which runs out of stack well inside a stored depth."""
+    ctx.schemas["chain"] = {
+        "$defs": {
+            "node": {"allOf": [{"anyOf": [{"type": "object", "properties": {"c": {"$ref": "#/$defs/hop"}}}]}]},
+            "hop": {"oneOf": [{"$ref": "#/$defs/node"}]},
+        },
+        "$ref": "#/$defs/node",
+    }
+    value: Any = {}
+    for _ in range(120):
+        value = {"c": value}
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": value, "schema": "chain"}, ctx)
+    assert raised.value.code == "base.value_too_deep"
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
 @pytest.mark.parametrize(
     ("schema", "value"),
     [

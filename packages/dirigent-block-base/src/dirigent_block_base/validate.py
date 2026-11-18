@@ -7,11 +7,12 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_block_base.messages import SCHEMA_REFERENCE_UNRESOLVED, VALUE_REFUSED, VALUE_UNCHECKED
+from dirigent_block_base.messages import SCHEMA_REFERENCE_UNRESOLVED, VALUE_REFUSED, VALUE_TOO_DEEP, VALUE_UNCHECKED
 from dirigent_common import (
     BlockModel,
     Duration,
     EvaluationOverrun,
+    EvaluationTooDeep,
     Issue,
     JsonMap,
     Unresolvable,
@@ -97,6 +98,8 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
             raise BlockFailure(
                 VALUE_UNCHECKED, error_class=ErrorClass.REJECTED, timeout=format_duration(error.within)
             ) from error
+        except EvaluationTooDeep as error:
+            raise BlockFailure(VALUE_TOO_DEEP, error_class=ErrorClass.REJECTED) from error
         finally:
             stopped.set()
         if errors:
