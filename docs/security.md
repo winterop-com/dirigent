@@ -96,10 +96,13 @@ a cookie a browser would also send over plain HTTP. A proxy that terminates TLS 
 through uvicorn's own trust setting: `X-Forwarded-Proto` counts only from an address in
 `FORWARDED_ALLOW_IPS`, which defaults to `127.0.0.1`.
 
-**Passwords** are Argon2id hashes, at the `argon2-cffi` library defaults, with a minimum
-length of eight characters enforced before anything is hashed. A login against an account
-that does not exist still verifies against a real Argon2id hash of a value nothing can
-present, so the timing of a miss matches the timing of a hit.
+**Passwords** are Argon2id hashes, at the `argon2-cffi` library defaults, from 8 to 1024
+characters, enforced before anything is hashed; the upper bound keeps every password inside
+what a login body may carry. A password or username holding a NUL or half a surrogate pair is
+refused with a 422. A login against an account that does not exist still verifies against a
+real Argon2id hash of a value nothing can present, so the timing of a miss matches the timing
+of a hit. Hashing and verifying run on four threads of their own, so a burst of logins queues
+there and never holds the event loop that every other request, stream and the scheduler share.
 
 **Tokens** are 32 bytes from the system CSPRNG, base64url-encoded. Only a SHA-256 of the
 presented value is stored, alongside the first eight characters in the clear so that a listing
@@ -1207,8 +1210,8 @@ Stated plainly, because a security page that lists only what exists is not much 
   secrets; admin gates supplying a secret and modifying a connection, not using it. What a
   connection may name is the same for every role: no connection reaches a file on the worker
   outside the run's work directory.
-- **MFA, password policy, account lockout.** None of these exist. There is a minimum length of
-  eight characters and a rate limit on login, and that is the whole of it.
+- **MFA, password policy, account lockout.** None of these exist. There is a length of 8 to 1024
+  characters and a rate limit on login, and that is the whole of it.
 - **Secret-manager integration.** None, by design. See [where the key comes
   from](#where-the-key-comes-from).
 - **Key rotation.** Not supported. See [rotation, honestly](#rotation-honestly).

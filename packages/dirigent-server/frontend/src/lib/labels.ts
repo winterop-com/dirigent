@@ -1073,7 +1073,7 @@ const refused = {
         duplicate_email: 'A user with the email {email} already exists.',
         duplicate_user: 'A user named {username} already exists.',
         last_admin: '{username} is the only active admin. Promote another account before changing this one.',
-        weak_password: 'A password must be at least {minimum} characters.',
+        weak_password: 'A password must be from {minimum} to {maximum} characters.',
         wrong_password: 'The current password is not correct.',
     },
     client: {

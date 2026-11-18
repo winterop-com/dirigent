@@ -3151,6 +3151,41 @@ def test_login_is_rate_limited_before_it_hashes_anything(anonymous: TestClient) 
     ADDRESS_BUCKETS.buckets.clear()
 
 
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/auth/login", '{"username": "nobody", "password": "a\\ud800b"}'),
+        ("/auth/login", '{"username": "no\\u0000body", "password": "wrong-password"}'),
+        ("/auth/password", '{"current_password": "a\\ud800b", "new_password": "long enough pw"}'),
+        ("/users/tester/$reset-password", '{"password": "long \\udfff enough"}'),
+        ("/users", '{"username": "half", "password": "long \\udfff enough", "role": "viewer"}'),
+    ],
+    ids=["login-password", "login-username", "change", "reset", "create"],
+)
+def test_a_password_or_username_no_database_holds_is_refused_rather_than_a_crash(
+    client: TestClient, path: str, body: str
+) -> None:
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    response = client.post(f"{PREFIX}{path}", content=body, headers={"content-type": "application/json"})
+    assert response.status_code == 422, response.text
+    assert [problem["code"] for problem in response.json()["problems"]] == ["validation.text_unstorable"]
+
+
+def test_a_password_too_long_to_log_in_with_cannot_be_set(client: TestClient) -> None:
+    """The login body is capped, so a password past what it carries would lock its account out."""
+    from dirigent_client.schemas.auth import MAX_PASSWORD_LENGTH
+
+    too_long = "x" * (MAX_PASSWORD_LENGTH + 1)
+    reset = client.post(f"{PREFIX}/users/tester/$reset-password", json={"password": too_long})
+    assert reset.status_code == 422
+    longest = "x" * MAX_PASSWORD_LENGTH
+    assert client.post(f"{PREFIX}/users/tester/$reset-password", json={"password": longest}).status_code == 204
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    assert client.post(f"{PREFIX}/auth/login", json={"username": "tester", "password": longest}).status_code == 200
+
+
 def test_a_caller_elsewhere_cannot_lock_an_account_out_of_login(settings: Settings, admin_token: str) -> None:
     """Exhausting a named account's count from one address leaves it whole from any other."""
     from dirigent_server import create_app
