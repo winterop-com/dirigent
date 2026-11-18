@@ -254,8 +254,8 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `pids_limit` | `integer or null` |  | `null` | A cap on how many processes the container may create. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this container runs on. Takes a connection of kind `docker`. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket, when neither the default nor `DOCKER_HOST` is right. |
-| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon may take. This is not the container's runtime: the container runs under the step's deadline, which the engine owns and this block never waits on. More than `0s`. |
-| `pull_timeout` | `string (humane-duration)` |  | `"10m"` | How long a pull may take, which is a different order of magnitude from an API call. More than `0s`. |
+| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long the daemon may keep one call waiting at each phase: connecting, sending the request, and between two reads of its answer. It bounds a silent daemon, not the whole call. This is not the container's runtime: the container runs under the step's deadline, which the engine owns and this block never waits on. More than `0s`. |
+| `pull_timeout` | `string (humane-duration)` |  | `"10m"` | How long a pull may go without the daemon answering, at each of the same phases. A pull that keeps reporting progress runs on past it, under the step's deadline. More than `0s`. |
 
 **Output**
 

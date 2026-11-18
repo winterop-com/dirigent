@@ -2,7 +2,7 @@
 
 import asyncio
 
-from dirigent_block_execute.capture import LOGGED_LINES, REDACTED, Drained, LiveLines, log_stream
+from dirigent_block_execute.capture import LOGGED_LINES, REDACTED, Drained, LiveLines, Logged, log_stream
 from dirigent_block_execute.shell import ShellRunConfig, ShellRunOperator, ShellRunOutput
 from dirigent_testing import FakeContext
 
@@ -81,7 +81,7 @@ async def test_a_secret_never_reaches_a_live_line(local_ctx: FakeContext) -> Non
     from dirigent_block_execute import subprocess
 
     workspace = subprocess.workspace(local_ctx.as_context(), "shell")
-    code, out, err, _stdout_uri, _stderr_uri = await subprocess.run(
+    ran = await subprocess.run(
         directory=workspace,
         ctx=local_ctx.as_context(),
         timeout_seconds=30,
@@ -89,10 +89,10 @@ async def test_a_secret_never_reaches_a_live_line(local_ctx: FakeContext) -> Non
         command="echo 'token s3cret in the clear'; echo 's3cret again' 1>&2",
         redact=["s3cret"],
     )
-    log_stream(local_ctx.as_context(), "stdout", out, ["s3cret"])
-    log_stream(local_ctx.as_context(), "stderr", err, ["s3cret"])
+    log_stream(local_ctx.as_context(), "stdout", ran.out, ["s3cret"])
+    log_stream(local_ctx.as_context(), "stderr", ran.err, ["s3cret"])
 
-    assert code == 0
+    assert ran.code == 0
     assert logged(local_ctx, "stdout") == [f"token {REDACTED} in the clear"]
     assert logged(local_ctx, "stderr") == [f"{REDACTED} again"]
 
@@ -124,7 +124,7 @@ def test_a_blank_line_is_neither_logged_nor_counted(ctx: FakeContext) -> None:
     live.feed(b"one\n\n   \ntwo\n")
     live.close()
 
-    assert live.logged() == (2, 2)
+    assert live.logged() == Logged(lines=2, live=2)
     assert logged(ctx, "stdout") == ["one", "two"]
 
 

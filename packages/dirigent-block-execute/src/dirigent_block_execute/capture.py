@@ -2,7 +2,8 @@
 
 import asyncio
 from collections.abc import Sequence
-from typing import NamedTuple
+
+from pydantic import BaseModel, ConfigDict
 
 from dirigent_common import REDACTED as REDACTED
 from dirigent_common import scrub
@@ -13,8 +14,10 @@ LOGGED_LINES = 40
 FAILURE_TAIL_LINES = 5
 
 
-class Captured(NamedTuple):
+class Captured(BaseModel):
     """One stream as an output carries it: the head that inlines, and the truth about the rest."""
+
+    model_config = ConfigDict(frozen=True)
 
     text: str
     """The head of the stream, as much of it as the instance lets a block inline."""
@@ -34,8 +37,10 @@ TAIL_BYTES = 8 * 1024
 CHUNK_BYTES = 64 * 1024
 
 
-class Logged(NamedTuple):
+class Logged(BaseModel):
     """What a stream put into the run log while it was still being read."""
+
+    model_config = ConfigDict(frozen=True)
 
     lines: int
     """Non-blank lines the stream carried."""
@@ -44,8 +49,10 @@ class Logged(NamedTuple):
     """How many of them reached the run log as they arrived."""
 
 
-class Drained(NamedTuple):
+class Drained(BaseModel):
     """What was kept of a stream that was written through to storage as it arrived."""
+
+    model_config = ConfigDict(frozen=True)
 
     head: bytes
     """The beginning, as much as may be inlined."""

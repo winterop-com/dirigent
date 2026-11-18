@@ -184,7 +184,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
-            code, out, err, stdout_uri, build_log_uri = await subprocess.run(
+            ran = await subprocess.run(
                 directory=root,
                 ctx=ctx,
                 timeout_seconds=timeout,
@@ -194,6 +194,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
                 what="docker buildx build",
                 redact=material.secrets,
             )
+            code, out, err, stdout_uri, build_log_uri = ran.code, ran.out, ran.err, ran.stdout_uri, ran.stderr_uri
             log_stream(ctx, "stdout", out, material.secrets)
             log_stream(ctx, "stderr", err, material.secrets)
             ctx.log.info("docker build finished", exit_code=code, tags=", ".join(config.tags))
@@ -304,7 +305,7 @@ async def _image_size(
     except BlockFailure:
         return 0
     text = out.decode("utf-8", errors="replace").strip()
-    return int(text) if text.isdigit() else 0
+    return int(text) if text.isascii() and text.isdigit() else 0
 
 
 def _classify(stderr_tail: bytes) -> ErrorClass:

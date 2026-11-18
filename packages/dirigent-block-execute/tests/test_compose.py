@@ -690,3 +690,11 @@ async def test_a_link_that_stays_inside_the_work_directory_is_followed(
     await DockerComposeUpOperator().execute(DockerComposeUpConfig(file="stack.yaml"), local_ctx.as_context())
 
     assert calls
+
+
+@pytest.mark.parametrize(("text", "port"), [("8080", 8080), ("²", 0), ("٣٠٠٠", 0), ("", 0), ("80a", 0)])
+def test_a_port_is_read_from_ascii_digits_only(text: str, port: int) -> None:
+    """``str.isdigit`` takes a superscript, which ``int`` refuses, and other scripts' digits, which it reads."""
+    from dirigent_block_execute.compose import _port  # pyright: ignore[reportPrivateUsage] - the parse under test
+
+    assert _port(text) == port

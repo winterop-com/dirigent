@@ -193,6 +193,12 @@ OUTPUT_NOT_A_FILE = EXECUTE.define(
     "is something a container left there, and it is not followed",
 )
 
+INPUT_TARGET_REFUSED = EXECUTE.define(
+    "input_target_refused",
+    "the input {name} cannot be staged: a link, or anything but a directory on the way and a "
+    "regular file at the end, stands where it goes in the run's work directory",
+)
+
 OUTPUT_TARGET_REFUSED = EXECUTE.define(
     "output_target_refused",
     "the output target {target} cannot be written: a link, or anything but a directory on the way "
