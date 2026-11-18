@@ -19,9 +19,9 @@ from dirigent_block_http.http import (
     HttpTarget,
     client_for,
     decode,
+    exchange,
     is_success,
     on_origin,
-    read_bounded,
     request_timeout,
     request_url,
     shown_url,
@@ -120,11 +120,7 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
                 timeout=request_timeout(config, client),
             )
             on_origin(config, client, request)
-            response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
-            try:
-                answered = await read_bounded(response, config.max_response)
-            finally:
-                await response.aclose()
+            response, answered = await exchange(config, client, request, config.max_response)
         duration = round((time.monotonic() - started) * 1000)
         ctx.log.info(
             "webhook delivered",

@@ -12,6 +12,13 @@ RESPONSE_TOO_LARGE = HTTP.define(
 
 STATUS_REFUSED = HTTP.define("status_refused", "{method} {url} answered {status}{answer}")
 
+UNREACHABLE = HTTP.define("unreachable", "{method} {url} did not reach {origin}: {detail}")
+
+NO_ANSWER = HTTP.define(
+    "no_answer",
+    "{method} {url} had no answer from {origin} within the {phase} timeout of {timeout}",
+)
+
 OFF_ORIGIN = HTTP.define(
     "off_origin",
     "{url} is not on {origin}, the origin of connection {connection}, "
