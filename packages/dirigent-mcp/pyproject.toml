@@ -15,7 +15,8 @@ dependencies = [
     "dirigent-common==0.36.0",
     # http.py patches private attributes of this release line's session manager.
     "mcp>=2.3.0,<2.4",
-    "pyyaml>=6.0.3",
+    "pydantic-core>=2.50.1",
+    "pydantic>=2.13.5",
     "starlette>=1.10.0",
     "uvicorn>=0.52.4",
 ]

@@ -58,7 +58,7 @@ def free_port() -> int:
 @pytest.fixture
 def service() -> Iterator[str]:
     """A tiny HTTP service the pipeline calls, in place of the network."""
-    server = ThreadingHTTPServer(("127.0.0.1", free_port()), Handler)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

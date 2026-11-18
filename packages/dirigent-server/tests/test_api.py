@@ -2066,8 +2066,9 @@ def test_run_stats_summarise_what_settled_in_the_window(client: TestClient) -> N
     assert answered.status_code == 200, answered.text
     stats = answered.json()
     assert len(stats["trend"]) == 8, "seven days back from now touch eight UTC days"
-    assert stats["trend"][-1]["day"] == now.date().isoformat()
-    assert (stats["trend"][-1]["total"], stats["trend"][-1]["failed"]) == (1, 1)
+    assert stats["trend"][-1]["day"] >= now.date().isoformat(), "the server may read its clock past midnight"
+    (settled_day,) = [row for row in stats["trend"] if row["day"] == now.date().isoformat()]
+    assert (settled_day["total"], settled_day["failed"]) == (1, 1)
     assert [(row["pipeline"], row["runs"], row["max_ms"]) for row in stats["durations"]] == [("api-demo", 1, 2000)]
     assert [(row["code"], row["count"], row["pipeline"]) for row in stats["top_errors"]] == [
         ("shell.exit", 1, "api-demo")
@@ -3164,8 +3165,8 @@ async def test_a_stream_waiting_out_a_quiet_interval_wakes_when_its_run_moves() 
 
     waited, interval = await quiet_wait(mark, 0.0, FOLLOW_MAX_INTERVAL_SECONDS)
 
-    assert time.monotonic() - began < 1.0
-    assert 0.0 < waited < 1.0
+    assert time.monotonic() - began < FOLLOW_MAX_INTERVAL_SECONDS / 2
+    assert 0.0 < waited < FOLLOW_MAX_INTERVAL_SECONDS / 2
     assert interval == FOLLOW_INTERVAL_SECONDS
 
 

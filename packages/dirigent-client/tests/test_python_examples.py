@@ -5,6 +5,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -66,6 +67,10 @@ def dg_path() -> Path:
     return candidate
 
 
+#: How many ports a start tries: a port read free can be taken before dg dev binds it.
+STARTS = 3
+
+
 @pytest.fixture(scope="module")
 def instance(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str]]:
     """A real dg dev process, and the environment a script needs to reach it."""
@@ -77,8 +82,6 @@ def instance(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str
         "enabled_unsafe_blocks: [shell.run]\n"
         'log_level: "WARNING"\n'
     )
-    port = free_port()
-    url = f"http://127.0.0.1:{port}"
     environment = {
         **os.environ,
         "DIRIGENT_CONFIG_FILE": str(settings),
@@ -88,23 +91,35 @@ def instance(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, str
     }
     environment.pop("DG_URL", None)
     environment.pop("DG_TOKEN", None)
-    process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
-        [str(dg_path()), "dev", "--port", str(port)],
-        cwd=tmp_path,
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    try:
-        token = _token_of(process)
-        _wait_for_health(url, process)
-        yield {**environment, "DG_URL": url, "DG_TOKEN": token}
-    finally:
-        process.terminate()
-        process.wait(timeout=30)
-        if process.stdout is not None:
-            process.stdout.close()
+    for _ in range(STARTS):
+        url = f"http://127.0.0.1:{free_port()}"
+        process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+            [str(dg_path()), "dev", "--port", url.rsplit(":", 1)[1]],
+            cwd=tmp_path,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            token = _token_of(process)
+            _drain(process)
+            if _answers_as_itself(url, token, process):
+                yield {**environment, "DG_URL": url, "DG_TOKEN": token}
+                return
+        finally:
+            process.terminate()
+            process.wait(timeout=30)
+            if process.stdout is not None:
+                process.stdout.close()
+    raise AssertionError(f"dg dev did not start on any of {STARTS} ports")  # pragma: no cover
+
+
+def _drain(process: subprocess.Popen[str]) -> None:
+    """Read what dg dev goes on writing, so a full pipe never stops it."""
+    stream = process.stdout
+    assert stream is not None
+    threading.Thread(target=lambda: [None for _ in stream], daemon=True).start()
 
 
 def _token_of(process: subprocess.Popen[str]) -> str:
@@ -127,17 +142,25 @@ def _token_of(process: subprocess.Popen[str]) -> str:
     raise AssertionError("dg dev did not emit a token")  # pragma: no cover
 
 
-def _wait_for_health(url: str, process: subprocess.Popen[str]) -> None:
-    """Wait until the server answers its liveness probe."""
+def _answers_as_itself(url: str, token: str, process: subprocess.Popen[str]) -> bool:
+    """Wait until the server at ``url`` takes this process's token, and say whether it ever did.
+
+    Its own token is what tells this instance from another one that took the port first.
+    """
     deadline = time.monotonic() + STARTUP_TIMEOUT
     while time.monotonic() < deadline:
-        if process.poll() is not None:  # pragma: no cover - only when dg dev fails to start
-            raise AssertionError(f"dg dev exited with {process.returncode}")
+        if process.poll() is not None:
+            return False
         try:
-            if httpx2.get(f"{url}/health", timeout=1.0).status_code == 200:
-                return
+            answered = httpx2.get(f"{url}/api/v1/auth/me", headers={"authorization": f"Bearer {token}"}, timeout=1.0)
         except httpx2.HTTPError:
             time.sleep(0.1)
+            continue
+        if answered.status_code == 200:
+            return True
+        if answered.status_code == 401:
+            return False
+        time.sleep(0.1)
     raise AssertionError("dg dev never became healthy")  # pragma: no cover
 
 

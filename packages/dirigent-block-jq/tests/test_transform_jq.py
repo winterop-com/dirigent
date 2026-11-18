@@ -237,6 +237,13 @@ SLOW = "reduce range(0; 3000000) as $i (0; . + $i)"
 SLOW_TOTAL = 4499998500000
 
 
+async def _until_taken(handed: list[ProgramRunner], seconds: float = 10.0) -> None:
+    """Wait for the pool to hand a step its process, which a slow machine takes a while to start."""
+    async with asyncio.timeout(seconds):
+        while not handed:
+            await asyncio.sleep(0.01)
+
+
 async def test_a_long_program_leaves_the_event_loop_free(ctx: FakeContext) -> None:
     """The binding holds the GIL while a program runs, so one evaluated here would starve the worker's loop."""
     beats = 0
@@ -283,7 +290,7 @@ async def test_a_cancelled_step_kills_the_process_its_program_was_running_in(
 
     monkeypatch.setattr(pool, "take", watched)
     running = asyncio.create_task(call_block(JqTransformer(), {"input": None, "program": SLOW}, ctx))
-    await asyncio.sleep(0.1)
+    await _until_taken(held)
     running.cancel()
     with pytest.raises(asyncio.CancelledError):
         await running

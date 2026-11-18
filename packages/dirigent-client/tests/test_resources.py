@@ -1,8 +1,9 @@
 """Every namespaced accessor: the method it uses, the path it addresses, and what it sends."""
 
+import inspect
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Final
 from urllib.parse import parse_qs
 from uuid import UUID
 
@@ -641,3 +642,73 @@ async def test_a_test_message_is_validated_like_any_request_body() -> None:
 def test_a_login_with_unstorable_text_is_refused_before_it_is_sent() -> None:
     with pytest.raises(ValidationError):
         LoginRequest(username="a\x00b", password=SecretStr("pw"))
+
+
+#: Accessors no row above addresses yet. The set only shrinks: a row added for one removes it here.
+UNTABULATED: Final = frozenset(
+    {
+        "admin.tokens.list",
+        "admin.users.activate",
+        "admin.users.deactivate",
+        "alerts.rule",
+        "alerts.update_rule",
+        "audit.list",
+        "auth.change_password",
+        "blocks.connection_kind",
+        "blocks.connection_kinds",
+        "blocks.document_schema",
+        "pipelines.backfill",
+        "pipelines.prune",
+        "pipelines.validate",
+        "runs.artifact_text",
+        "runs.artifacts",
+        "runs.attempts",
+        "runs.items",
+        "runs.pause",
+        "runs.report_document",
+        "runs.rerun",
+        "runs.resume",
+        "runs.stats",
+        "runs.summary",
+        "runs.wait",
+        "schemas.create",
+        "schemas.delete",
+        "schemas.get",
+        "schemas.list",
+        "schemas.update",
+        "sources.get",
+        "sources.inputs",
+        "sources.list",
+        "sources.pause",
+        "sources.resume",
+        "sources.rotate_token",
+        "sources.set_secret",
+        "system.health",
+        "system.ready",
+        "trigger_documents.delete",
+        "trigger_documents.get",
+        "trigger_documents.list",
+    }
+)
+
+
+def _accessors(namespace: object, prefix: str = "") -> set[str]:
+    """Every coroutine method under a client's namespaces, by its dotted name."""
+    found: set[str] = set()
+    for attribute in dir(namespace):
+        if attribute.startswith("_") or attribute == "aclose":
+            continue
+        value = getattr(namespace, attribute)
+        if inspect.iscoroutinefunction(value):
+            found.add(prefix + attribute)
+        elif type(value).__module__.startswith("dirigent_client.resources"):
+            found |= _accessors(value, f"{prefix}{attribute}.")
+    return found
+
+
+def test_the_accessor_table_names_every_accessor_the_client_has() -> None:
+    every = _accessors(Dirigent(url="http://dirigent.test", token="t"))
+    tabulated = {row[0] for row in ACCESSORS}
+    assert every - tabulated - UNTABULATED == set(), "an accessor with no row in ACCESSORS"
+    assert UNTABULATED & tabulated == set(), "a tabulated accessor is still listed as untabulated"
+    assert UNTABULATED - every == set(), "an accessor listed as untabulated no longer exists"

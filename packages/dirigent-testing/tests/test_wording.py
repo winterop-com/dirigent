@@ -22,6 +22,7 @@ MODULES: Final[tuple[str, ...]] = (
     "dirigent_core.messages",
     "dirigent_server.messages",
     "dirigent_cli.messages",
+    "dirigent_mcp.messages",
     "dirigent_testing.messages",
     "dirigent_blocks.messages",
     "dirigent_block_base.messages",

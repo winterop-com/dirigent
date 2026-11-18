@@ -59,7 +59,10 @@ known-first-party = [
     "dirigent_block_storage",
     "dirigent_cli",
     "dirigent_client",
+    "dirigent_common",
     "dirigent_core",
+    "dirigent_examples",
+    "dirigent_mcp",
     "dirigent_plugin",
     "dirigent_server",
     "dirigent_storage_s3",
@@ -101,6 +104,7 @@ mypy_path = [
     "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
+    "packages/dirigent-mcp/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
     # `test_shared_words.py` reads the web UI's catalogue through the same parser the
@@ -142,6 +146,7 @@ extraPaths = [
     "packages/dirigent-examples/src",
     "packages/dirigent-server/src",
     "packages/dirigent-cli/src",
+    "packages/dirigent-mcp/src",
     "packages/dirigent-storage-s3/src",
     "packages/dirigent-testing/src",
     # `test_shared_words.py` reads the web UI's catalogue through the same parser the

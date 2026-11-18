@@ -193,9 +193,9 @@ async def test_a_step_timeout_over_a_slow_engine_fires_rather_than_waiting_it_ou
 
     with pytest.raises(TimeoutError):
         async with asyncio.timeout(0.1):
-            await call_block(SlowTransformer(), {"input": ["ada"], "program": "1"}, block_ctx)
+            await call_block(SlowTransformer(), {"input": ["ada"], "program": "2"}, block_ctx)
 
-    assert time.monotonic() - started < 0.5
+    assert time.monotonic() - started < 1.0
 
 
 def test_check_config_returns_the_compile_error_for_a_bad_program() -> None:

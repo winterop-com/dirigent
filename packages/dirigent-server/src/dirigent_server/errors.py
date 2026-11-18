@@ -53,7 +53,7 @@ def render(
     """Build the one problem shape, from whichever handler is answering."""
     try:
         title = HTTPStatus(status).phrase
-    except ValueError:  # pragma: no cover - a non-standard status from a plugin
+    except ValueError:
         title = "Error"
     return Problem(
         status=status,

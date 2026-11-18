@@ -14,7 +14,8 @@ dependencies = [
     "dirigent-common==0.36.0",
     "dirigent-plugin==0.36.0",
     "faker>=40.39.0",
-    "jsonschema>=4.26.0",
+    "pydantic-core>=2.50.1",
+    "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     "structlog>=25.5.0",
 ]

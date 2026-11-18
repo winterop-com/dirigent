@@ -105,6 +105,13 @@ def taken(monkeypatch: pytest.MonkeyPatch) -> list[ProgramRunner]:
     return handed
 
 
+async def _until_taken(handed: list[ProgramRunner], seconds: float = 10.0) -> None:
+    """Wait for the pool to hand a step its process, which a slow machine takes a while to start."""
+    async with asyncio.timeout(seconds):
+        while not handed:
+            await asyncio.sleep(0.01)
+
+
 @pytest.fixture
 def runner() -> Iterator[ProgramRunner]:
     """One runner of this test's own, spoken to directly rather than through a step."""
@@ -284,7 +291,7 @@ async def test_a_cancelled_step_kills_the_runner_its_program_was_running_in(
 ) -> None:
     """A program cannot be interrupted, so one that outlived its step would run on unwatched."""
     running = asyncio.create_task(call_block(EchoTransformer(), {"input": 1, "program": "forever"}, block_ctx))
-    await asyncio.sleep(0.1)
+    await _until_taken(taken)
     running.cancel()
     with pytest.raises(asyncio.CancelledError):
         await running
