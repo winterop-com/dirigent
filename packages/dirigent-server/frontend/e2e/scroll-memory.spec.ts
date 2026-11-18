@@ -108,7 +108,7 @@ test('back from a run on a later page lands the runs listing where it was left',
         const drawn = page.locator('[role="row"][aria-rowindex]:not([aria-rowindex="1"])').first()
         await expect(first).toBeVisible()
         // Opening the listing reads one page and stops there, however fast the answer came.
-        await page.waitForTimeout(1_500)
+        await page.waitForLoadState('networkidle')
         expect(reads).toHaveLength(1)
 
         const scroller = await scrollerOf(first)
