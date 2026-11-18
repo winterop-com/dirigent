@@ -7,6 +7,7 @@ import {
     IMPORTANCE_FLOORS,
     LOG_TARGET,
     LOG_TARGET_LABEL,
+    onChangeShut,
     targetChosen,
     targetOptions,
     unreadyRule,
@@ -172,5 +173,24 @@ describe('the channels a rule may deliver through', () => {
             ],
         )
         expect(rows.map((row) => row.value)).toEqual([LOG_TARGET, 'alpha-slack', 'beta-slack', 'zulu-hook'])
+    })
+})
+
+describe('whether a rule may wait for a changed outcome', () => {
+    test('every event a settled run raises may', () => {
+        for (const event of [
+            'run_failed',
+            'run_completed_with_errors',
+            'run_succeeded',
+            'run_recovered',
+        ] as const) {
+            expect(onChangeShut(event)).toBeUndefined()
+        }
+    })
+
+    test('a stuck run has not settled, and the switch says so', () => {
+        expect(onChangeShut('run_stuck')).toBe(
+            'A stuck run has not settled, so it has no outcome to compare.',
+        )
     })
 })

@@ -103,7 +103,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
 
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
@@ -155,7 +155,7 @@ test('escape on the target picker leaves the box saying what is chosen', async (
 
     // What the box reads is what is created.
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -165,7 +165,7 @@ test('escape on the target picker leaves the box saying what is chosen', async (
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     await expect(field).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(WIDE.code)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -177,10 +177,10 @@ test('escape on the target picker leaves the box saying what is chosen', async (
 test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
-    test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
+    test('the five events wrap two to a row, and nothing scrolls sideways', async ({ page }) => {
         await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
         const events = page.getByRole('group', { name: LABELS.word.event }).getByRole('button')
-        await expect(events).toHaveCount(4)
+        await expect(events).toHaveCount(5)
 
         const read = () =>
             events.evaluateAll((found) =>
@@ -195,7 +195,7 @@ test.describe('on a phone', () => {
         await expect
             .poll(async () => Math.min(...(await read()).map((box) => box.height)))
             .toBeGreaterThanOrEqual(42)
-        expect(new Set((await read()).map((box) => box.top)).size).toBe(2)
+        expect(new Set((await read()).map((box) => box.top)).size).toBe(3)
 
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         expect(sideways).toBeLessThanOrEqual(0)

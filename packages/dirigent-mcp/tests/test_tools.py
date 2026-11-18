@@ -513,8 +513,15 @@ async def test_a_rule_a_document_declares_is_read_and_paused_but_not_rewritten(o
 
 
 async def test_an_alert_rule_is_created_changed_paused_resumed_and_deleted(operator: MCPServer) -> None:
-    created = await call(operator, "create_alert_rule", code="on-failure", event="run_failed", throttle="15m")
-    assert (created["code"], created["throttle"], created["paused"]) == ("on-failure", "15m", False)
+    created = await call(
+        operator, "create_alert_rule", code="on-failure", event="run_failed", throttle="15m", on_change=True
+    )
+    assert (created["code"], created["throttle"], created["on_change"], created["paused"]) == (
+        "on-failure",
+        "15m",
+        True,
+        False,
+    )
 
     changed = await call(operator, "update_alert_rule", code="on-failure", template="{{ run.pipeline }} failed")
     assert changed["template"] == "{{ run.pipeline }} failed"

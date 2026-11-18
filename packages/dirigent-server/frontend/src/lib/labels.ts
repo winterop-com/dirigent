@@ -1029,6 +1029,8 @@ const refused = {
         bad_template: 'The template in {field} is not valid Jinja: {detail}',
         declared:
             'Alert rule {code} is declared in the document of pipeline {pipeline}. Edit its alerts: section and apply it again.',
+        on_change_unsettled:
+            'Only on change compares a run with the one before it, and {event} is raised for a run that has not settled.',
         owned_elsewhere:
             'Alert rule {code} already exists, declared by {owner}. A rule code is unique across the instance.',
         target_has_no_notifier:
@@ -3645,6 +3647,7 @@ const alerting = {
         run_failed: 'Failed',
         run_completed_with_errors: 'Completed with errors',
         run_succeeded: 'Succeeded',
+        run_recovered: 'Recovered',
         run_stuck: 'Stuck',
         test: 'Test message',
     },
@@ -3730,6 +3733,16 @@ const alerting = {
     body_pane_windowed: (name: string) => `${name}, in a window`,
     /** How long a rule waits before it fires again, as the box shows a duration. */
     throttle_placeholder: '15m',
+    /** A rule that fires only when a run ends differently from the run before it. */
+    on_change: {
+        label: 'Only when the outcome changes',
+        explain:
+            'Fires for a run whose status, or whose failed steps and fan-out elements, differ from the previous settled run of its pipeline: the first failure of an outage, not every one.',
+        /** Beside the event, in the listing and the panel, of a rule that has it. */
+        note: 'on change',
+        /** Why the switch is shut for a stuck run. */
+        unsettled: 'A stuck run has not settled, so it has no outcome to compare.',
+    },
     /** The footer of the new-rule dialog, which declares and does not send. */
     declare_only: 'A rule fires when a run settles. Nothing is sent now.',
 

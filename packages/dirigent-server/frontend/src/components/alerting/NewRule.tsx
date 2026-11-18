@@ -8,6 +8,7 @@ import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Field } from '@winterop-com/sokkel-ui/Field'
+import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
@@ -17,6 +18,7 @@ import {
     given,
     IMPORTANCE_FLOORS,
     LOG_TARGET,
+    onChangeShut,
     ruleCodeIssue,
     SCOPES,
     SUBJECT_HINT,
@@ -80,6 +82,7 @@ export function NewRule({
     const [template, setTemplate] = useState('')
     const [body, setBody] = useState('')
     const [throttle, setThrottle] = useState(NO_THROTTLE)
+    const [onChange, setOnChange] = useState(false)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
     // Which boxes have been left once, so a required one says so only after somebody was there.
@@ -89,6 +92,7 @@ export function NewRule({
     const write = useMayWrite()
     const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, throttle }))
     const codeIssue = left.code ? (ruleCodeIssue(code) ?? null) : null
+    const onChangeWhy = onChangeShut(event)
 
     const send = () => {
         setBusy(true)
@@ -105,6 +109,7 @@ export function NewRule({
             template: given(template),
             body: given(body),
             throttle: throttle.trim(),
+            on_change: onChange && onChangeWhy === undefined,
         })
             .then(
                 () => {
@@ -297,6 +302,14 @@ export function NewRule({
                     placeholder={LABELS.alerting.throttle_placeholder}
                     autoComplete="off"
                     mono
+                />
+                <SwitchField
+                    id="rule-on-change"
+                    label={LABELS.alerting.on_change.label}
+                    explain={LABELS.alerting.on_change.explain}
+                    reason={onChangeWhy}
+                    checked={onChange && onChangeWhy === undefined}
+                    onCheckedChange={setOnChange}
                 />
             </div>
         </DialogShell>

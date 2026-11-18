@@ -6,7 +6,7 @@
  * shape `lib/trigger-form` answers for a schedule and a webhook.
  */
 
-import { LOG_NOTIFIER, type AlertScope } from '@/lib/alerting'
+import { LOG_NOTIFIER, SETTLED_EVENTS, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { ConnectionOut } from '@/lib/connections'
 import { kindGlyph } from '@/lib/glyphs'
 import { headingOf } from '@/lib/identity'
@@ -151,6 +151,11 @@ export function ruleCodeIssue(code: string): string | undefined {
     if (code.trim() === '') return LABELS.alerting.unready.code_missing
     if (!CODE.test(code.trim())) return LABELS.alerting.unready.code_shape
     return undefined
+}
+
+/** Why a rule on this event cannot wait for a changed outcome, or nothing when it can. */
+export function onChangeShut(event: AlertEvent): string | undefined {
+    return SETTLED_EVENTS.includes(event) ? undefined : LABELS.alerting.on_change.unsettled
 }
 
 /** What is wrong with a throttle as typed, or nothing when it is a duration. */

@@ -1,4 +1,4 @@
-"""The account guard's concurrency lane: what only a real PostgreSQL can prove."""
+"""The account guard's and the alert outcome's concurrency lane: what only a real PostgreSQL can prove."""
 
 import asyncio
 from collections.abc import AsyncIterator
@@ -7,11 +7,17 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import UserRole
+from dirigent_client.enums import AlertEvent, NotificationEvent, RunStatus, UserRole
+from dirigent_core.alerting import AlertRuleRequest, create_rule, raise_for_status
 from dirigent_core.auth import LastAdmin, count_active_admins, create_user, deactivate_user, find_user, set_role
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
-from dirigent_core.models import Base
+from dirigent_core.engine import EngineServices
+from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
+from dirigent_core.engine.runs import create_run, save_pipeline
+from dirigent_core.models import Base, Run
+from dirigent_core.plugins import PluginHost
+from engineblocks import EngineTestPlugin
 
 pytestmark = pytest.mark.postgres
 
@@ -94,3 +100,45 @@ async def test_two_admins_deactivating_each_other_at_once_leave_one_behind(
     allowed = await asyncio.gather(deactivate(pg_sessions, "grace"), deactivate(pg_sessions, "ada"))
     assert sorted(allowed) == [False, True]
     assert await active_admins(pg_sessions) == 1
+
+
+@pytest.fixture
+def pg_services(pg_settings: Settings) -> EngineServices:
+    """The engine's services against the container, with the test blocks installed."""
+    return EngineServices.build(pg_settings, PluginHost({"engine-tests": EngineTestPlugin().contribute()}))
+
+
+async def a_run(sessions: async_sessionmaker[AsyncSession], services: EngineServices) -> Run:
+    """Create one more run of the same pipeline."""
+    definition = PipelineDefinition(code="watched", steps={"only": StepDefinition(block="test.echo")})
+    async with session_scope(sessions) as session:
+        created = await create_run(session, services, await save_pipeline(session, definition))
+    assert created is not None
+    return created
+
+
+async def settle(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, run: Run, status: RunStatus
+) -> list[NotificationEvent]:
+    """Settle a run in its own transaction, as the worker that finished it would, and name what it raised."""
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        stored.status = status
+        return [notification.event for notification in await raise_for_status(session, services, stored, status)]
+
+
+async def test_two_runs_recovering_at_once_raise_one_recovery(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """The second to settle reads the first's success, not the failure both of them followed."""
+    async with session_scope(pg_sessions) as session:
+        await create_rule(session, pg_services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED))
+    for _ in range(5):
+        await settle(pg_sessions, pg_services, await a_run(pg_sessions, pg_services), RunStatus.FAILED)
+        one, two = await a_run(pg_sessions, pg_services), await a_run(pg_sessions, pg_services)
+        raised = await asyncio.gather(
+            settle(pg_sessions, pg_services, one, RunStatus.SUCCEEDED),
+            settle(pg_sessions, pg_services, two, RunStatus.SUCCEEDED),
+        )
+        assert sorted(raised) == [[], [NotificationEvent.RUN_RECOVERED]]
