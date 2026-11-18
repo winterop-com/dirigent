@@ -23,6 +23,7 @@ from dirigent_core.messages import (
     REPORT_STEP_NOT_A_BLOCK,
     TEMPLATE_NAME_UNKNOWN,
 )
+from dirigent_core.outputchecks import MAPPING_METHODS
 
 #: The block whose text a document most often means as its report.
 RENDER_BLOCK: Final = "report.render"
@@ -68,9 +69,6 @@ STEP_FIELDS: Final = frozenset(
         "output_bytes",
     }
 )
-
-#: What a mapping answers to in a template beside its keys: ``step.items()`` is a loop.
-MAPPING_METHODS: Final = frozenset({"items", "keys", "values", "get"})
 
 #: Every name a report template is given, and the fields of the ones that are objects.
 REPORT_CONTEXT: Final[Mapping[str, frozenset[str] | None]] = {

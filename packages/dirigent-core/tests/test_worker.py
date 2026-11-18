@@ -123,6 +123,7 @@ async def test_the_worker_registers_and_then_marks_itself_stopped(
     assert row.tags == ["docker"]
     assert row.plugins == {"engine-tests": len(services.host.catalog().blocks)}
     assert row.catalog_digest == services.host.catalog().digest
+    assert row.notifiers == sorted(services.host.notifiers)
     assert row.hostname
 
     worker.request_stop()

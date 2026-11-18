@@ -36,9 +36,9 @@ from dirigent_core.pipelines import carries_tag
 #: The longest window a stats read covers, which also bounds the trend at one row per day.
 MAX_WINDOW: Final = timedelta(days=366)
 
-#: The most recent settled runs the duration percentiles are measured over. The percentiles
-#: are ordered in Python, so SQLite and PostgreSQL answer the same.
-DURATION_SAMPLE: Final = 10_000
+#: How many of each pipeline's most recent settled runs its duration percentiles are measured
+#: over. The percentiles are ordered in Python, so SQLite and PostgreSQL answer the same.
+DURATION_SAMPLE: Final = 1_000
 
 #: How many rows ``top_errors`` and ``failing_steps`` answer with at most.
 TOP: Final = 10
@@ -119,7 +119,8 @@ async def _trend(scope: Scope) -> list[DayCounts]:
     rows = (await scope.session.execute(scope.narrow(statement))).all()
     tallied: dict[date, Counter[RunStatus]] = {}
     current = scope.start.date()
-    while current <= scope.end.date():
+    last = (scope.end - timedelta(microseconds=1)).date()
+    while current <= last:
         tallied[current] = Counter()
         current += timedelta(days=1)
     for found, status, runs in rows:
@@ -147,16 +148,22 @@ def _as_date(value: object) -> date:
 
 
 async def _durations(scope: Scope) -> list[PipelineDurations]:
-    """Measure each pipeline's settled runs from start to finish, over the most recent sample."""
-    statement = (
-        sa.select(Pipeline.code, Run.started_at, Run.finished_at)
+    """Measure each pipeline's settled runs from start to finish, over its own most recent sample."""
+    rank = (
+        sa.func.row_number()
+        .over(partition_by=Run.pipeline_id, order_by=(Run.finished_at.desc(), Run.id.desc()))
+        .label("rank")
+    )
+    ranked = scope.narrow(
+        sa.select(Pipeline.code, Run.started_at, Run.finished_at, rank)
         .select_from(Run)
         .join(Pipeline, Pipeline.id == Run.pipeline_id)
         .where(Run.started_at.is_not(None))
-        .order_by(Run.finished_at.desc())
-        .limit(DURATION_SAMPLE)
+    ).subquery()
+    statement = sa.select(ranked.c.code, ranked.c.started_at, ranked.c.finished_at).where(
+        ranked.c.rank <= DURATION_SAMPLE
     )
-    rows = (await scope.session.execute(scope.narrow(statement))).all()
+    rows = (await scope.session.execute(statement)).all()
     measured: dict[str, list[int]] = {}
     for code, started, finished in rows:
         if started is None or finished is None:  # pragma: no cover - both are held by the statement
@@ -285,8 +292,9 @@ async def run_summary(
         named[row.pipeline_id] = (row.code, row.name)
         recent[row.pipeline_id].append(RecentRun(id=row.id, status=RunStatus(row.status), created_at=row.created_at))
 
-    timed = narrow(
-        sa.select(Run.pipeline_id, Run.started_at, Run.finished_at)
+    order = sa.func.row_number().over(partition_by=Run.pipeline_id, order_by=(Run.created_at.desc(), Run.id.desc()))
+    sampled = narrow(
+        sa.select(Run.pipeline_id, Run.started_at, Run.finished_at, order.label("rank"))
         .select_from(Run)
         .join(Pipeline, Pipeline.id == Run.pipeline_id)
         .where(
@@ -294,8 +302,9 @@ async def run_summary(
             Run.started_at.is_not(None),
             Run.finished_at.is_not(None),
         )
-        .order_by(Run.created_at.desc())
-        .limit(DURATION_SAMPLE)
+    ).subquery()
+    timed = sa.select(sampled.c.pipeline_id, sampled.c.started_at, sampled.c.finished_at).where(
+        sampled.c.rank <= DURATION_SAMPLE
     )
     measured: dict[object, list[int]] = defaultdict(list)
     for pipeline_id, started, finished in (await session.execute(timed)).all():

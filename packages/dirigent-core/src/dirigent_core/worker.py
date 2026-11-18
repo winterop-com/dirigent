@@ -20,7 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import AttemptStatus, WorkerStatus
 from dirigent_client.schemas import Catalog
 from dirigent_core import retention, telemetry, wakeups
-from dirigent_core.alerting import NotificationDispatcher, raise_for_stuck, recover_notifications
+from dirigent_core.alerting import (
+    NotificationDispatcher,
+    fail_unsendable_notifications,
+    raise_for_stuck,
+    recover_notifications,
+)
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine.claim import ClaimedUnit
@@ -274,6 +279,7 @@ class Worker:
                     stuck = await detect_stuck_runs(session, after=self.settings.stuck_run)
                     await raise_for_stuck(session, self.services, stuck)
                     await recover_notifications(session)
+                    await fail_unsendable_notifications(session, waited=self.settings.stale_worker)
                     told = await retry_remote_cancels(session, self.services, self.tags)
                     # This worker's own row was refreshed by the heartbeat well inside the
                     # age below, so a sweeper never reaps the process running it.
@@ -396,6 +402,7 @@ class Worker:
             row.version = _version()
             row.plugins = _plugin_counts(catalog)
             row.tags = list(self.tags)
+            row.notifiers = sorted(self.services.host.notifiers)
             row.concurrency = self.concurrency
             row.catalog_digest = catalog.digest
             row.last_seen_at = utcnow()

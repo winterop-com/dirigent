@@ -727,7 +727,9 @@ ALERT_OWNED_ELSEWHERE = ALERT.define(
 
 ALERT_VERSION_GONE = ALERT.define("version_gone", "run {run} pins a pipeline version that is gone")
 
-NOTIFIER_NOT_ON_WORKER = ALERT.define("notifier_not_on_worker", "notifier {notifier} is not installed on this worker")
+NOTIFIER_NOT_ON_WORKER = ALERT.define(
+    "notifier_not_on_worker", "notifier {notifier} is not installed on any worker at hand"
+)
 
 NOTIFICATION_IN_FLIGHT = ALERT.define(
     "notification_in_flight",
