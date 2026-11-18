@@ -36,9 +36,6 @@ export interface ArtifactOut {
     created_at: string
 }
 
-/** How many pages of a run's artifacts a walk asks for before it stops. */
-const ARTIFACTS_PAGE_LIMIT = 20
-
 /** Where one page of a run's artifacts is read from. */
 export function artifactsPath(runId: string, after: string | null, limit: number = PAGE): string {
     const query = new URLSearchParams({ limit: String(limit) })
@@ -47,22 +44,23 @@ export function artifactsPath(runId: string, after: string | null, limit: number
 }
 
 /**
- * Every artifact one run holds, up to the page limit a walk stops asking at.
+ * Every artifact one run holds, walked to the last page.
  *
  * A run's artifacts are one per stored output plus the report document, so the whole listing is
- * what a panel draws rather than a page of it with a cursor under it.
+ * what a panel draws rather than a page of it with a cursor under it. The report document is
+ * written as the run settles, so it is near the end of a long listing, and a walk that stopped
+ * short would say the run rendered none.
  */
 export async function readArtifacts(runId: string): Promise<ArtifactOut[]> {
     const rows: ArtifactOut[] = []
     let after: string | null = null
-    for (let page = 0; page < ARTIFACTS_PAGE_LIMIT; page += 1) {
+    do {
         // A cursor walk is sequential by definition: the next page is named by this one.
         // oxlint-disable-next-line no-await-in-loop
         const answer: Page<ArtifactOut> = await apiJson<Page<ArtifactOut>>(artifactsPath(runId, after))
         rows.push(...answer.items)
         after = answer.next
-        if (after === null) break
-    }
+    } while (after !== null)
     return rows
 }
 

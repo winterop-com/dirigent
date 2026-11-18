@@ -1,9 +1,8 @@
 import { describe, expect, test } from 'vitest'
 
 import { applyFrame, initialState, type RunDetailState } from '@/lib/run-detail'
-import type { DagNode, LogEntryOut, RunDetailOut, RunOut } from '@/lib/runs'
+import { readEveryLine, type DagNode, type LogEntryOut, type RunDetailOut, type RunOut } from '@/lib/runs'
 import {
-    asNdjson,
     atLeast,
     clampTerminalHeight,
     copyText,
@@ -351,9 +350,20 @@ describe('copying and saving', () => {
         expect(text).toContain('shape')
     })
 
-    test('writes NDJSON as one entry per line, exactly as the API answered it', () => {
-        const lines = asNdjson(INTERLEAVED).split('\n')
-        expect(lines).toHaveLength(INTERLEAVED.length)
+    test('writes NDJSON as one entry per line, exactly as the API answered it, walked to the last page', async () => {
+        // Past the fifty pages of 500 a download once stopped at, and reported as complete.
+        const pages = 60
+        const read = (_run: string, after: string | null) => {
+            const at = after === null ? 0 : Number(after)
+            return Promise.resolve({
+                items: [INTERLEAVED[at % INTERLEAVED.length]!],
+                next: at + 1 < pages ? String(at + 1) : null,
+            })
+        }
+        const { parts, count } = await readEveryLine('r-1', read)
+        const lines = parts.join('').trimEnd().split('\n')
+        expect(count).toBe(pages)
+        expect(lines).toHaveLength(pages)
         expect(JSON.parse(lines[0] ?? '')).toEqual(INTERLEAVED[0])
     })
 

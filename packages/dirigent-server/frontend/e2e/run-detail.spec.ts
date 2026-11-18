@@ -779,3 +779,34 @@ test("a refused rerun says the server's reason, and the screen stays on the run"
     ).toBeVisible()
     expect(new URL(page.url()).pathname).toBe(`/runs/${runId}`)
 })
+
+test("a run's output that could not be read says why, rather than that there is none", async ({ page }) => {
+    await signIn(page)
+    const runId = await runOfTheExample(page.request)
+    await ranToCompletion(page.request, runId)
+    await page.route(
+        (url) => url.pathname.endsWith(`/runs/${runId}/artifacts`),
+        (route) =>
+            route.fulfill({
+                status: 503,
+                contentType: 'application/problem+json',
+                body: JSON.stringify({
+                    status: 503,
+                    title: 'Service Unavailable',
+                    detail: 'The instance is starting.',
+                    code: null,
+                    params: {},
+                    problems: [],
+                    instance: null,
+                }),
+            }),
+    )
+
+    await page.goto(`/runs/${runId}`)
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.output }).click()
+
+    await expect(panel.getByText('The instance is starting.', { exact: true })).toBeVisible()
+    await expect(panel.getByText(LABELS.runs.artifacts_empty, { exact: true })).toHaveCount(0)
+})

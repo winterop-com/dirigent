@@ -9,6 +9,7 @@ import {
     PREVIEW_MAX_BYTES,
     previewKindOf,
     previewLanguageOf,
+    readArtifacts,
     readReportDocument,
     renderedText,
     reportArtifact,
@@ -155,6 +156,34 @@ describe('readReportDocument', () => {
         expect(refused).toBeInstanceOf(ApiError)
         expect((refused as ApiError).problem.code).toBe('artifacts.object_missing')
         expect((refused as ApiError).problem.detail).toContain('restore the artifact root')
+    })
+})
+
+describe('readArtifacts', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals()
+        forgetConfig()
+    })
+
+    test('walks to the last page, where a long run keeps its report document', async () => {
+        // Past the twenty pages a walk once stopped at, and drew as the whole listing.
+        const pages = 25
+        vi.stubGlobal('fetch', (url: string) => {
+            if (url === '/config.json')
+                return Promise.resolve(answer(200, { api_prefix: '/api/v1', version: '0' }))
+            const after = new URL(url, 'http://here').searchParams.get('after')
+            const at = after === null ? 0 : Number(after)
+            const last = at + 1 === pages
+            const row = last
+                ? artifact({ id: 'report', step_name: null, content_type: MARKDOWN_CONTENT_TYPE })
+                : artifact({ id: `out-${String(at)}`, step_name: 'per_region' })
+            return Promise.resolve(answer(200, { items: [row], next: last ? null : String(at + 1) }))
+        })
+
+        const rows = await readArtifacts('r')
+
+        expect(rows).toHaveLength(pages)
+        expect(reportArtifact(rows)?.id).toBe('report')
     })
 })
 

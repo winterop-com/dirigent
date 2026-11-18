@@ -250,11 +250,6 @@ export function copyText(entries: readonly LogEntryOut[]): string {
     return entries.map((entry) => lineText(entry)).join('\n')
 }
 
-/** A run's log as NDJSON: one entry per line, exactly as the API answered it. */
-export function asNdjson(entries: readonly LogEntryOut[]): string {
-    return entries.map((entry) => JSON.stringify(entry)).join('\n')
-}
-
 /** What the file a download saves is called. */
 export function downloadName(runId: string): string {
     return `dirigent-run-${runId}.ndjson`
