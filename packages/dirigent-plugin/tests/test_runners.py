@@ -227,6 +227,33 @@ def test_an_id_no_program_was_compiled_under_is_an_error_naming_it(runner: Progr
     assert "nothing_was_compiled_here" in str(raised.value)
 
 
+def test_a_reply_longer_than_the_limit_is_refused_and_its_runner_killed(
+    runner: ProgramRunner, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The worker holds a reply whole, so a program answering with more than the limit is not read in."""
+    monkeypatch.setattr(runners, "RUNNER_REPLY_LIMIT", 200)
+    echo = runner.compile("echo")
+    assert runner.run(echo, "x" * 100) == ["x" * 100]
+
+    with pytest.raises(TransformError) as raised:
+        runner.run(echo, "x" * 1000)
+
+    assert "more than 200 bytes" in str(raised.value)
+    assert not runner.alive
+
+
+async def test_a_step_whose_program_answers_past_the_limit_is_rejected(
+    block_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runners, "RUNNER_REPLY_LIMIT", 200)
+
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(EchoTransformer(), {"input": "x" * 1000, "program": "echo"}, block_ctx)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "more than 200 bytes" in raised.value.message
+
+
 def test_a_forgotten_program_is_released_and_the_source_compiles_again_under_a_new_id(
     runner: ProgramRunner,
 ) -> None:

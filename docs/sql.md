@@ -104,7 +104,8 @@ values. A pipeline that needs to read two tables writes two steps.
 
 One statement per field. A `;` outside a string, an identifier, a comment or a dollar-quoted
 body ends the statement, so anything but whitespace and comments after one is a second
-statement and the document is refused when it is applied. `sql.execute` is where several
+statement and the document is refused when it is applied. In an escape string, `E'...'`, a
+backslash escapes the character after it, the quote included, as PostgreSQL and DuckDB read it. `sql.execute` is where several
 statements go, one per entry, and they run in one transaction.
 
 !!! note "PostgreSQL infers a parameter's type from where it sits"

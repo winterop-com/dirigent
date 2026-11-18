@@ -689,11 +689,14 @@ A program that compiled is held under the id the request named it by until a `fo
 releases it. A step compiles once and runs every element through that id, so the program
 text crosses the pipe once however many elements there are, and a runner outliving a step
 keeps nothing of it. An `error` in reply to a `run` fails the step as rejected with the
-runner's message, and an id no program is compiled under is an error naming it.
+runner's message, and an id no program is compiled under is an error naming it. A reply
+line longer than 64 MiB is not read: the step is rejected (`plugin.runner_reply_too_large`)
+and the runner is killed, since the rest of the line is still in its pipe.
 `dirigent_block_jq/jq_runner.py` is the one dirigent ships, and the only jq in it is
 the line that compiles a program and the line that reads its outputs.
 
 There is no runner at apply, where a document is checked before it is stored. An engine that
 can read its own language there implements `check_program`, which refuses a bad program by
-raising `TransformError` -- the jq engines compile it with the jq binding on the worker --
-and an engine that cannot leaves a bad program to be refused when the step compiles it.
+raising `TransformError` -- the jq engines compile it with the jq binding in the process
+applying the document, and refuse a module directive before anything compiles the author's
+text alone, since jq reads the file a directive names while it compiles -- and an engine that cannot leaves a bad program to be refused when the step compiles it.

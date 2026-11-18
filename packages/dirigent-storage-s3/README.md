@@ -9,7 +9,10 @@ bucket is always carried by the URI, never inferred.
   multi-gigabyte artifact is never resident.
 - **Writes are all-or-nothing.** A small write lands as one `put_object`. Once the buffer
   crosses 5 MiB it becomes a multipart upload, completed only on a clean exit and aborted on
-  any exception, so a reader never sees a half-written object.
+  any exception, so a reader never sees a half-written object. An abort that fails, an
+  endpoint that is down included, leaves the write's own failure in place, and the upload's
+  parts stay in the bucket until an `AbortIncompleteMultipartUpload` lifecycle rule expires
+  them; give a bucket that holds artifacts one.
 - **Listing takes a prefix or a glob.** The fixed part of the pattern becomes the S3
   `Prefix`; the returned keys are filtered with `fnmatch`, so `*` matches across `/`.
 - **Any S3 API.** Set `endpoint_url` and `path_style` to address a self-hosted or

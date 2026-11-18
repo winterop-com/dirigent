@@ -405,7 +405,9 @@ def _check_single(statement: str) -> None:
     """Refuse text holding more than one statement.
 
     A ``;`` outside a string literal, an identifier, a comment or a dollar-quoted body ends a
-    statement, so anything but whitespace and comments after one means there are two. Two
+    statement, so anything but whitespace and comments after one means there are two. In an
+    ``E'...'`` escape string a backslash escapes the quote after it, as PostgreSQL and DuckDB
+    read it, and DuckDB runs every statement it is handed. Two
     statements in one field would run outside ``sql.execute``'s transaction, and a document
     that means to run two says so by listing two.
     """
@@ -436,6 +438,8 @@ def _skip(statement: str, index: int) -> int:
     if statement.startswith("/*", index):
         end = statement.find("*/", index + 2)
         return _length_or(statement, end + 2 if end != -1 else -1)
+    if _opens_escape_string(statement, index):
+        return _skip_escaped(statement, index + 1)
     if character in "'\"`":
         return _skip_quoted(statement, index, character)
     if character == "$":
@@ -449,6 +453,34 @@ def _skip_quoted(statement: str, index: int, quote: str) -> int:
     while cursor < len(statement):
         if statement[cursor] == quote:
             if statement.startswith(quote * 2, cursor):
+                cursor += 2
+                continue
+            return cursor + 1
+        cursor += 1
+    return len(statement)
+
+
+def _opens_escape_string(statement: str, index: int) -> bool:
+    """Whether an ``E'...'`` string starts here, in which a backslash escapes the character after it.
+
+    The ``E`` is a prefix only where it is not the end of a longer word.
+    """
+    if statement[index] not in "eE" or not statement.startswith("'", index + 1):
+        return False
+    before = statement[index - 1] if index > 0 else " "
+    return not (before.isalnum() or before in "_$")
+
+
+def _skip_escaped(statement: str, index: int) -> int:
+    """Past an escape string's quoted run, where both a doubled quote and a backslash mean the next character."""
+    cursor = index + 1
+    while cursor < len(statement):
+        character = statement[cursor]
+        if character == "\\":
+            cursor += 2
+            continue
+        if character == "'":
+            if statement.startswith("''", cursor):
                 cursor += 2
                 continue
             return cursor + 1

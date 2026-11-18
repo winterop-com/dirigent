@@ -119,6 +119,9 @@ async def test_a_result_past_max_rows_fails_the_step_rather_than_being_truncated
         "SELECT 1; SELECT 2",
         "SELECT 1;\nDROP TABLE reading",
         "SELECT 1; -- a comment\nSELECT 2",
+        "SELECT E'\\''; DELETE FROM reading; --'",
+        "SELECT e'\\\\'; SELECT 2",
+        "SELECT 'a\\'; SELECT 2",
     ],
 )
 def test_more_than_one_statement_is_refused_when_the_document_is_written(sql: str) -> None:
@@ -142,6 +145,8 @@ def test_more_than_one_statement_is_refused_when_the_document_is_written(sql: st
         "SELECT 1 /* a ; in a comment */",
         "SELECT $$ a ; in a dollar quote $$",
         "SELECT $tag$ a ; in a tagged quote $tag$",
+        "SELECT E'it\\'s ; fine' AS escaped",
+        "SELECT name FROM t WHERE code = 'one' AND note = E'a\\'; b'",
     ],
 )
 def test_one_statement_stays_one_statement_however_it_spells_a_semicolon(sql: str) -> None:

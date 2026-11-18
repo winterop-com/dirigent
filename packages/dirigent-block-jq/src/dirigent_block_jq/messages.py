@@ -10,6 +10,11 @@ JQ = Catalogue("transform.jq")
 
 PROGRAM_REFUSED = JQ.define("program_refused", "{detail}")
 
+PROGRAM_DIRECTIVE = JQ.define(
+    "program_directive",
+    "a program cannot import or include a module or declare one: it reads its input and nothing else",
+)
+
 NO_OUTPUT = JQ.define(
     "no_output",
     "the program produced no output, and a transform step has to produce one; "

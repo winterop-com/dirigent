@@ -1194,6 +1194,8 @@ const refused = {
         route_repeated_parameter: 'The path {template} names the parameter {name} twice.',
         route_tail_not_last:
             'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
+        runner_reply_too_large:
+            "The program's answer for one value came to more than {limit} bytes, the most a runner may answer with. Reduce the value inside the program, or split the input across steps.",
         source_too_large:
             '{uri} is larger than the {maximum} this conversion holds in memory. Raise max_size on the step, or split the source upstream.',
         source_not_hosted:

@@ -12,6 +12,7 @@ runner, and again by the runner when the step compiles it.
 """
 
 import json
+import re
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -24,6 +25,7 @@ from dirigent_block_jq.messages import (
     FILTER_ANSWER,
     FILTER_OUTPUT_COUNT,
     MAP_OUTPUT_COUNT,
+    PROGRAM_DIRECTIVE,
     PROGRAM_REFUSED,
 )
 from dirigent_block_jq.messages import NO_OUTPUT as NO_OUTPUT_MESSAGE
@@ -38,6 +40,12 @@ NO_OUTPUT = NO_OUTPUT_MESSAGE.render()
 #: its own line numbers because the message a bad one is refused with comes from compiling
 #: the author's text, unwrapped.
 SANDBOX = "{} as $ENV | def env: {}; (\n"
+
+#: A program whose first word, past whitespace and comments, is a module directive.
+OPENS_WITH_DIRECTIVE = re.compile(r"(?:\s|#[^\n]*)*(?:import|include|module)\b")
+
+#: What jq says when the wrapped program opens with a module directive.
+DIRECTIVE = re.compile(r"unexpected (?:import|include|module)\b")
 
 #: The script a jq process runs, started by path so that it imports jq and the standard
 #: library and nothing else.
@@ -57,14 +65,27 @@ class JqEngine(RunnerEngine):
         return f"{SANDBOX}{program}\n)"
 
     def check_program(self, program: str) -> None:
-        """Compile the program here at apply, refusing a bad one with jq's own message about it."""
+        """Compile the program here at apply, refusing a bad one with jq's own message about it.
+
+        jq resolves an ``import`` or ``include`` while it compiles, reading files from wherever
+        the directive's search path names. In the wrapped text a directive is a syntax error
+        rather than a read, so the wrapped program is compiled first, and the author's text
+        alone only once neither it nor jq's answer shows a directive.
+        """
         try:
-            # The author's text is compiled first, so a refusal carries jq's message about
-            # their program and not about the wrapper.
-            libjq.compile(program)
             libjq.compile(self.source(program))
+            wrapped: ValueError | None = None
+        except ValueError as error:
+            wrapped = error
+        if OPENS_WITH_DIRECTIVE.match(program) or (wrapped is not None and DIRECTIVE.search(str(wrapped))):
+            raise TransformError(PROGRAM_DIRECTIVE.render()) from wrapped
+        try:
+            # Compiled for the message, which is then about the author's program and not the wrapper.
+            libjq.compile(program)
         except ValueError as error:
             raise TransformError(PROGRAM_REFUSED.render(detail=str(error).strip())) from error
+        if wrapped is not None:
+            raise TransformError(PROGRAM_REFUSED.render(detail=str(wrapped).strip())) from wrapped
 
 
 class JqProgramConfig(ProgramConfig):

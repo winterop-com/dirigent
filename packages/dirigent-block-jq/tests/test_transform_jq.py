@@ -5,6 +5,7 @@ import contextlib
 import json
 import time
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -78,6 +79,30 @@ def test_a_bad_program_is_refused_at_apply_with_jqs_own_message() -> None:
 
     assert len(issues) == 1
     assert "syntax error, unexpected end of file" in issues[0].message
+
+
+@pytest.mark.parametrize(
+    "directive",
+    [
+        'import "{name}" as $d {{search: "{root}"}}; .',
+        'include "{name}" {{search: "{root}"}}; .',
+        '# a comment first\nimport "{name}" as m {{search: "{root}"}}; .',
+    ],
+)
+def test_a_program_naming_a_module_is_refused_at_apply_without_reading_the_file(tmp_path: Path, directive: str) -> None:
+    """The answer is the same whether the named file exists, since jq would read it while compiling."""
+    (tmp_path / "present.json").write_text("not json, and private")
+    (tmp_path / "present.jq").write_text("not jq, and private")
+    answers: list[list[str]] = []
+    for name in ("present", "absent"):
+        program = directive.format(name=name, root=tmp_path)
+        config = JqTransformer.config_model.model_validate({"input": READINGS, "program": program})
+        answers.append([issue.message for issue in JqTransformer().check_config(config)])
+
+    assert answers[0] == answers[1]
+    assert len(answers[0]) == 1
+    assert "cannot import or include a module" in answers[0][0]
+    assert str(tmp_path) not in answers[0][0]
 
 
 def test_a_program_that_compiles_is_passed_without_comment() -> None:
