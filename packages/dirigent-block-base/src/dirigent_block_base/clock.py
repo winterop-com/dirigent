@@ -34,7 +34,8 @@ class TimeWindowConfig(BlockModel):
     """The window a step may proceed in, in one named timezone."""
 
     after: time = time(0, 0)
-    """The local time the window opens."""
+    """The local time the window opens. On a day a clock change skips it, the window opens at
+    the change; on a day a clock change repeats it, the window opens at each reading of it."""
 
     before: time = time(23, 59, 59)
     """The local time it closes; earlier than ``after`` means the window crosses midnight."""
@@ -76,9 +77,9 @@ class TimeWindowConfig(BlockModel):
         """Report whether a window opens on a given date."""
         return not self.days or WEEKDAYS[day.weekday()] in self.days
 
-    def opening(self, day: date) -> datetime:
-        """The moment the window opens on a given date, in its own zone."""
-        return datetime.combine(day, self.after, tzinfo=self.zone)
+    def openings(self, day: date) -> list[datetime]:
+        """Every moment the window opens on a given date, in its own zone, earliest first."""
+        return readings(day, self.after, self.zone)
 
 
 class TimeWindowOutput(BlockModel):
@@ -117,6 +118,44 @@ class TimeWindowSensor(Sensor[TimeWindowConfig, TimeWindowOutput]):
         return NotYet(next_poll_in=wait)
 
 
+def readings(day: date, wall: time, zone: ZoneInfo) -> list[datetime]:
+    """Every moment a zone's clock comes to read ``wall`` on ``day``, earliest first.
+
+    A wall time a forward change skips has one, the change itself, which is when the clock
+    passes it. A wall time a backward change repeats has two.
+    """
+    naive = datetime.combine(day, wall)
+    first = naive.replace(tzinfo=zone)
+    if _wall(first.astimezone(UTC), zone) != naive:
+        return [_change_past(naive, zone, first)]
+    second = naive.replace(tzinfo=zone, fold=1)
+    if second.utcoffset() != first.utcoffset():
+        return [first, second]
+    return [first]
+
+
+def _wall(moment: datetime, zone: ZoneInfo) -> datetime:
+    """What a zone's clock reads at a moment, without the zone."""
+    return moment.astimezone(zone).replace(tzinfo=None)
+
+
+def _change_past(naive: datetime, zone: ZoneInfo, first: datetime) -> datetime:
+    """The moment of the forward change that skips a wall time, found to the second.
+
+    ``fold=1`` reads the skipped time with the offset after the change, which is a moment
+    before it; ``fold=0`` with the offset before, which is a moment after it.
+    """
+    before = naive.replace(tzinfo=zone, fold=1).astimezone(UTC)
+    after = first.astimezone(UTC)
+    while after - before > timedelta(seconds=1):
+        middle = before + timedelta(seconds=(after - before).total_seconds() // 2)
+        if _wall(middle, zone) >= naive:
+            after = middle
+        else:
+            before = middle
+    return after.astimezone(zone)
+
+
 def now_in(zone: ZoneInfo) -> datetime:
     """Read the current moment in one zone."""
     return datetime.now(zone)
@@ -129,14 +168,20 @@ def entered_at(config: TimeWindowConfig, moment: datetime) -> datetime | None:
     clock = local.timetz().replace(tzinfo=None)
     if not config.crosses_midnight:
         if config.after <= clock < config.before and config.opens_on(today):
-            return config.opening(today)
+            return _latest_opening(config, today, moment)
         return None
     if clock >= config.after and config.opens_on(today):
-        return config.opening(today)
+        return _latest_opening(config, today, moment)
     yesterday = today - timedelta(days=1)
     if clock < config.before and config.opens_on(yesterday):
-        return config.opening(yesterday)
+        return _latest_opening(config, yesterday, moment)
     return None
+
+
+def _latest_opening(config: TimeWindowConfig, day: date, moment: datetime) -> datetime:
+    """The last time the window opened on a day at or before a moment the clock is inside it."""
+    passed = [opening for opening in config.openings(day) if opening.astimezone(UTC) <= moment.astimezone(UTC)]
+    return passed[-1] if passed else config.openings(day)[0]
 
 
 def next_opening(config: TimeWindowConfig, moment: datetime) -> datetime | None:
@@ -146,9 +191,9 @@ def next_opening(config: TimeWindowConfig, moment: datetime) -> datetime | None:
         day = local.date() + timedelta(days=offset)
         if not config.opens_on(day):
             continue
-        opening = config.opening(day)
-        if opening > local:
-            return opening
+        for opening in config.openings(day):
+            if opening.astimezone(UTC) > moment.astimezone(UTC):
+                return opening
     return None  # pragma: no cover - a non-empty day set always opens within eight days
 
 
@@ -157,7 +202,7 @@ def wait_for(config: TimeWindowConfig, moment: datetime) -> timedelta:
     opening = next_opening(config, moment)
     if opening is None:  # pragma: no cover - next_opening always finds one
         return MAX_WAIT
-    return max(MIN_WAIT, min(opening - moment.astimezone(config.zone), MAX_WAIT))
+    return max(MIN_WAIT, min(opening.astimezone(UTC) - moment.astimezone(UTC), MAX_WAIT))
 
 
 class TimeSleepConfig(BlockModel):

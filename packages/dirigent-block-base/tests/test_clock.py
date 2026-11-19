@@ -269,3 +269,44 @@ def test_the_sleep_sensor_declares_a_cadence_it_almost_never_uses() -> None:
     spec = TimeSleepSensor().spec
     assert spec.id == "time.sleep"
     assert spec.default_poll == timedelta(seconds=1)
+
+
+# -- clock changes ---------------------------------------------------------------
+# Europe/Oslo moves from 02:00 to 03:00 on 2026-03-29 (01:00 UTC), and from 03:00 back to
+# 02:00 on 2026-10-25 (01:00 UTC). A moment in a repeated hour compares unequal to every
+# moment in another zone, so these compare in UTC.
+
+
+def utc(moment: datetime | None) -> datetime | None:
+    """The same moment in UTC, which is what two moments are compared in across a clock change."""
+    return None if moment is None else moment.astimezone(UTC)
+
+
+def test_a_window_whose_opening_a_forward_change_skips_opens_at_the_change() -> None:
+    config = TimeWindowConfig(after=time(2, 30), before=time(5, 0), timezone=OSLO)
+    change = at("2026-03-29T01:00")
+    assert utc(next_opening(config, at("2026-03-29T00:30"))) == change
+    assert wait_for(config, at("2026-03-29T00:30")) == timedelta(minutes=30)
+    assert utc(entered_at(config, at("2026-03-29T01:10"))) == change, "it opened at the change, not after the poke"
+
+
+def test_a_wait_across_a_forward_change_is_measured_in_real_time() -> None:
+    config = TimeWindowConfig(after=time(3, 15), before=time(5, 0), timezone=OSLO)
+    assert wait_for(config, at("2026-03-29T00:50")) == timedelta(minutes=25), "01:50 CET to 03:15 CEST"
+
+
+def test_a_window_whose_opening_a_backward_change_repeats_opens_at_each() -> None:
+    config = TimeWindowConfig(after=time(2, 0), before=time(2, 30), timezone=OSLO)
+    first, second = at("2026-10-25T00:00"), at("2026-10-25T01:00")
+    assert utc(next_opening(config, at("2026-10-24T23:30"))) == first
+    assert utc(next_opening(config, at("2026-10-25T00:40"))) == second, "02:40 CEST waits for 02:00 CET"
+    assert wait_for(config, at("2026-10-25T00:40")) == timedelta(minutes=20)
+    assert utc(entered_at(config, at("2026-10-25T00:10"))) == first
+    assert utc(entered_at(config, at("2026-10-25T01:10"))) == second
+
+
+def test_a_window_open_through_a_backward_change_reopens_when_the_clock_reaches_it_again() -> None:
+    config = TimeWindowConfig(after=time(2, 30), before=time(4, 0), timezone=OSLO)
+    assert utc(entered_at(config, at("2026-10-25T00:40"))) == at("2026-10-25T00:30"), "02:40 CEST"
+    assert entered_at(config, at("2026-10-25T01:10")) is None, "02:10 CET is before the window again"
+    assert utc(entered_at(config, at("2026-10-25T01:40"))) == at("2026-10-25T01:30"), "02:40 CET"
