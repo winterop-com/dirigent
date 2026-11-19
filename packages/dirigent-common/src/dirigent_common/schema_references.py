@@ -18,14 +18,16 @@ checked against a local shape it never meant.
 
 import re
 from collections.abc import Callable, Iterator
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 from urllib.parse import urljoin
 
 from jsonschema_specifications import REGISTRY as SPECIFICATIONS
 from referencing import Registry, Resource
-from referencing._core import Resolver
 from referencing.exceptions import NoSuchResource, Unresolvable
 from referencing.jsonschema import DRAFT202012
+
+if TYPE_CHECKING:
+    from referencing._core import Resolver
 
 LOCAL_REFERENCES: Final[Registry[Any]] = Registry()
 
@@ -122,7 +124,9 @@ def reference_targets(schema: Any, lookup: Callable[[str], Any | None]) -> tuple
     return reached, unreached
 
 
-#: The 2020-12 keywords whose value is one subschema, a list of them, or a map of them.
+#: The 2020-12 keywords whose value is one subschema, a list of them, or a map of them, with
+#: the older drafts' ``definitions`` and ``dependencies``. A ``dependencies`` entry that is a
+#: list of property names holds no subschema and is passed over.
 _ONE_SUBSCHEMA: Final = frozenset(
     {
         "additionalProperties",
@@ -139,7 +143,9 @@ _ONE_SUBSCHEMA: Final = frozenset(
     }
 )
 _LIST_OF_SUBSCHEMAS: Final = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
-_MAP_OF_SUBSCHEMAS: Final = frozenset({"$defs", "definitions", "dependentSchemas", "patternProperties", "properties"})
+_MAP_OF_SUBSCHEMAS: Final = frozenset(
+    {"$defs", "definitions", "dependencies", "dependentSchemas", "patternProperties", "properties"}
+)
 
 
 def unresolved_references(schema: Any, registry: Registry[Any] = LOCAL_REFERENCES) -> list[tuple[str, str]]:
@@ -158,7 +164,7 @@ def unresolved_references(schema: Any, registry: Registry[Any] = LOCAL_REFERENCE
 
 
 def _collect_unresolved(
-    node: Any, path: tuple[str, ...], resolver: Resolver[Any], found: list[tuple[str, str]]
+    node: Any, path: tuple[str, ...], resolver: "Resolver[Any]", found: list[tuple[str, str]]
 ) -> None:
     """Add each unresolvable ``$ref`` under one subschema to ``found``."""
     if not isinstance(node, dict):

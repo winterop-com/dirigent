@@ -40,6 +40,50 @@ def test_unresolved_references_are_named_where_they_sit_and_resolve_as_a_validat
 
 
 @pytest.mark.parametrize(
+    ("keyword", "shape"),
+    [
+        *[
+            (keyword, "one")
+            for keyword in (
+                "additionalProperties",
+                "contains",
+                "contentSchema",
+                "else",
+                "if",
+                "items",
+                "not",
+                "propertyNames",
+                "then",
+                "unevaluatedItems",
+                "unevaluatedProperties",
+            )
+        ],
+        *[(keyword, "list") for keyword in ("allOf", "anyOf", "oneOf", "prefixItems")],
+        *[
+            (keyword, "map")
+            for keyword in (
+                "$defs",
+                "definitions",
+                "dependencies",
+                "dependentSchemas",
+                "patternProperties",
+                "properties",
+            )
+        ],
+    ],
+)
+def test_every_applicator_is_walked_for_references(keyword: str, shape: str) -> None:
+    dangling = {"$ref": "#/$defs/nope"}
+    value: Any = {"one": dangling, "list": [dangling], "map": {"x": dangling}}[shape]
+    where = {"one": keyword, "list": f"{keyword}/0", "map": f"{keyword}/x"}[shape]
+    assert unresolved_references({keyword: value}) == [(where, "#/$defs/nope")]
+
+
+def test_a_dependencies_entry_naming_properties_holds_no_reference() -> None:
+    assert unresolved_references({"dependencies": {"a": ["b"]}}) == []
+
+
+@pytest.mark.parametrize(
     ("uri", "code"),
     [
         ("org-unit", "org-unit"),
