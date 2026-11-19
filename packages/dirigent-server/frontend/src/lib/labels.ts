@@ -1936,6 +1936,9 @@ const editor = {
         not_yaml: 'that is not YAML',
         empty: 'the document is empty',
         not_a_mapping: 'a document is a mapping of keys, not a single value',
+        /** A number JSON cannot carry, by the path of the key that holds it. */
+        not_finite: (path: string) =>
+            `${path}: an infinity or NaN cannot be sent; write a finite number or a string`,
     },
 
     /** The row under a config box holding a code, saying what that code names and where. */

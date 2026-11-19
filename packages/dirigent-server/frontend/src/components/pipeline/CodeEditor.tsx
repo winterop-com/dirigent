@@ -25,6 +25,9 @@ import { highlightLine } from '@/lib/preferences'
  * rather than fetched. The row under the caret is shaded only when the reader's preference asks
  * for it.
  *
+ * YAML is read as YAML 1.1, the way the server's PyYAML reads it, for the check, hover and
+ * completion alike.
+ *
  * The language comes from the media type the field's schema published, YAML when none is named.
  * The editor reads every media type, FHIRPath and CQL through the fhir plugin `main.tsx` installs,
  * and one it does not know is plain text.
@@ -119,6 +122,7 @@ export function CodeEditor({
             schema={checkedAgainst}
             words={SCHEMA_CHECK_WORDS}
             deferred={deferred}
+            yamlVersion="1.1"
             label={label}
             id={id}
             placeholder={placeholder}
