@@ -447,22 +447,22 @@ class Settings(BaseSettings):
 
     A project's age is its newest container's, so a stack still being built up is young."""
 
-    retention_runs: Duration | None = None
+    retention_runs: Duration | None = Field(default=None, gt=timedelta(0))
     """How long a settled run is kept, with its items, attempts, artifacts and alerts."""
 
-    retention_logs: Duration | None = None
+    retention_logs: Duration | None = Field(default=None, gt=timedelta(0))
     """How long a log entry is kept, for runs too young to be pruned themselves."""
 
-    retention_inputs: Duration | None = None
+    retention_inputs: Duration | None = Field(default=None, gt=timedelta(0))
     """How long the record of an input that reached a source is kept."""
 
-    retention_firings: Duration | None = None
+    retention_firings: Duration | None = Field(default=None, gt=timedelta(0))
     """How long a schedule firing is kept."""
 
-    retention_notifications: Duration | None = None
+    retention_notifications: Duration | None = Field(default=None, gt=timedelta(0))
     """How long an alert that was sent or failed for good is kept, for runs too young to be pruned themselves."""
 
-    retention_audit: Duration | None = timedelta(days=365)
+    retention_audit: Duration | None = Field(default=timedelta(days=365), gt=timedelta(0))
     """How long an entry of the audit trail is kept; null keeps every one."""
 
     retention_scratch: bool = True
@@ -509,6 +509,9 @@ class Settings(BaseSettings):
 
     notification_lease: Duration = Field(default=timedelta(seconds=60), ge=timedelta(seconds=5))
     """How long a claimed notification's lease is valid before another worker may take it."""
+
+    notification_timeout: Duration = Field(default=timedelta(seconds=60), gt=timedelta(0))
+    """How long one delivery through a notifier may take before it fails and is retried."""
 
     endpoint_prefix: str = "/endpoints"
     """Where endpoint sources are served, outside the versioned API.

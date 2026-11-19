@@ -94,6 +94,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `notification_max_attempts` | `DIRIGENT_NOTIFICATION_MAX_ATTEMPTS` | `5` | How many times a notification delivery is retried before it is recorded as failed. |
 | `notification_backoff` | `DIRIGENT_NOTIFICATION_BACKOFF` | `"30s"` | The delay after a notification's first failed delivery; later ones double from it. |
 | `notification_lease` | `DIRIGENT_NOTIFICATION_LEASE` | `"1m"` | How long a claimed notification's lease is valid before another worker may take it. |
+| `notification_timeout` | `DIRIGENT_NOTIFICATION_TIMEOUT` | `"1m"` | How long one delivery through a notifier may take before it fails and is retried. |
 | `endpoint_prefix` | `DIRIGENT_ENDPOINT_PREFIX` | `"/endpoints"` | Where endpoint sources are served, outside the versioned API. |
 | `source_max_body` | `DIRIGENT_SOURCE_MAX_BODY` | `1048576` | The largest body any endpoint reads, whatever its own `max_body` says; reading stops one byte past it. |
 | `source_body_timeout` | `DIRIGENT_SOURCE_BODY_TIMEOUT` | `"30s"` | How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile. |

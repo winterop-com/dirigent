@@ -756,6 +756,8 @@ NOTIFIER_NOT_ON_WORKER = ALERT.define(
     "notifier_not_on_worker", "notifier {notifier} is not installed on any worker at hand"
 )
 
+NOTIFIER_TIMED_OUT = ALERT.define("notifier_timed_out", "notifier {notifier} did not finish sending within {timeout}")
+
 NOTIFICATION_IN_FLIGHT = ALERT.define(
     "notification_in_flight",
     "a worker is delivering this one; wait for it to finish or fail",
