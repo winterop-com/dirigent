@@ -33,12 +33,14 @@ dg run --local examples/triggers/cron-windowed.yaml --window 2026-06-01..2026-06
 | [at-one-time.yaml](at-one-time.yaml) | The one-time firing: the backfill and the launch, and how a moment written without an offset is read in the schedule's own zone. |
 | [managed-and-manual.yaml](managed-and-manual.yaml) | Against a real instance: what an apply materialises, what it removes, and the hand-made schedule it leaves alone. |
 | [document-nightly.yaml](document-nightly.yaml) | A `kind: triggers` document: clocks for a pipeline defined elsewhere, owning its own rows and refusing a pipeline no instance holds. |
+| [health-checks-every-20-minutes.yaml](health-checks-every-20-minutes.yaml) | The clock of a health monitor: a cron every twenty minutes over the checks in `recipes/health-checks.yaml`, with the targets pinned on the schedule. |
 
 A pipeline carries as many schedules as it needs, each with its own zone and its own
 parameters: nightly against production and hourly against staging is two schedules on one
 pipeline, never two pipelines.
 
-Every file here but one is a pipeline document that carries its own clocks, which is the
+Every file here but two is a pipeline document that carries its own clocks, which is the
 primary form: one file is one deployable unit, and its digest versions the triggers with the
 steps. `document-nightly.yaml` is the other form, for a pipeline somebody else's file
-defines -- it names `managed-and-manual`, so read the two together.
+defines -- it names `managed-and-manual`, so read the two together. So is
+`health-checks-every-20-minutes.yaml`, which names `health-checks`.

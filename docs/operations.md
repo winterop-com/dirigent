@@ -1195,6 +1195,11 @@ is answered from the run. A backfill run is history and is never compared: it ne
 the outcome nor raises a recovery. See [alerting](design.md#9-alerting) for what "previous"
 means when runs settle together, and for retries.
 
+`examples/recipes/health-checks.yaml` is the whole pattern in one document: read-only checks
+fanned out over a list of targets, later checks skipped for a target whose first check failed,
+the same three rules declared under its `alerts:`, and
+`examples/triggers/health-checks-every-20-minutes.yaml` as its clock.
+
 **A rule may also name the least importance it fires for**, which is how paging is kept apart
 from logging without listing pipelines by hand. `importance` on a rule is matched against what
 the pipeline's own document declares -- `routine`, `normal` or `critical` -- and a rule naming
