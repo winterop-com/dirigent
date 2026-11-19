@@ -144,7 +144,7 @@ async function nothingScrollsSideways(page: Page, name: string): Promise<void> {
  */
 async function readyForShot(page: Page, name: string): Promise<void> {
     await page
-        .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+        .getByRole('button', { name: /^Instance: .*\b(healthy|degraded|unhealthy)$/ })
         .waitFor({ timeout: 15_000 })
     await page.waitForTimeout(900)
     await nothingScrollsSideways(page, name)
@@ -285,7 +285,7 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     // THE EDITOR, with a step open: the panel is half the screen, and a bare canvas is half a
     // picture. `submit` is the step worth opening -- it is the fanned one, and its config
     // carries the item policy and the retry budget.
-    await page.goto(`/pipelines/${BIG}/edit`)
+    await page.goto(`/pipelines/${BIG}/$edit`)
     await page.locator('.react-flow__node').getByText('submit', { exact: true }).click()
     await page.locator('aside').getByRole('heading', { name: 'Config' }).waitFor({ timeout: 30_000 })
     await shot(page, 'editor')
