@@ -550,6 +550,25 @@ def test_the_url_secrets_are_listed_as_written_and_decoded() -> None:
     assert set(config.database_url_secrets(settings)) == {"p%40ss", "p@ss", "a%2Bb", "a+b"}
 
 
+@pytest.mark.parametrize(
+    "family",
+    [
+        "retention_runs",
+        "retention_logs",
+        "retention_inputs",
+        "retention_firings",
+        "retention_notifications",
+        "retention_audit",
+    ],
+)
+def test_a_retention_age_of_zero_is_refused(family: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A family with no age is never pruned; an age of zero would prune all of it at once."""
+    monkeypatch.setenv(f"DIRIGENT_{family.upper()}", "0s")
+    with pytest.raises(ValidationError) as raised:
+        Settings()
+    assert family in str(raised.value)
+
+
 def test_an_unparseable_database_url_is_refused_without_repeating_it() -> None:
     with pytest.raises(ValidationError) as refused:
         Settings(database_url="postgresql+asyncpg//dirigent:hunter2@db:5432/dirigent")
