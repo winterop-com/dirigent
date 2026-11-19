@@ -721,7 +721,8 @@ semantics instead of writing error-handling code:
   one by one, rather than when the grid's step has settled.
   A `for_each` over an upstream step's output is expanded when the step becomes ready; a list
   that cannot be read, or one wider than `fan_out_max_items`, fails it as `rejected`.
-  An item is named by its whole element, or by the field the step's `key` names, a dotted path
+  An item is named by its whole element, a string by its text and anything else by its compact
+  JSON, or by the field the step's `key` names, a dotted path
   such as `code` or `site.code`. A step that adopts a grid takes the grid's names and declares
   no key of its own, so one target is named alike under every check that maps over it, which is
   what the run grid, the per-element stats and an alert's outcome digest group by. A key must be
