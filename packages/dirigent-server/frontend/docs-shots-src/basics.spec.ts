@@ -137,7 +137,7 @@ async function signIn(page: Page): Promise<void> {
 /** Wait until the corner has read the instance, and refuse a picture wider than the frame. */
 async function shot(page: Page, name: string): Promise<void> {
     await page
-        .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+        .getByRole('button', { name: /^Instance: .*\b(healthy|degraded|unhealthy)$/ })
         .waitFor({ timeout: 15_000 })
     await page.waitForTimeout(900)
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
@@ -159,7 +159,7 @@ async function runOnStep(page: Page, runId: string, step: string): Promise<void>
  * `nth` 1 the body of the request the playground reflected, which is what a send sent.
  */
 async function outputAtBody(page: Page, nth = 0): Promise<void> {
-    const body = page.getByText('"body"', { exact: true }).nth(nth)
+    const body = page.getByText(/^\s*"body":/).nth(nth)
     await body.waitFor({ timeout: 15_000 })
     await body.evaluate((line) => {
         line.scrollIntoView({ block: 'start' })
@@ -202,10 +202,12 @@ test('the pictures docs/basics.md is built out of', async ({ page }) => {
     expect(await settled(request, gated)).toBe('succeeded')
 
     await page.goto(`/schemas/${SCHEMA}`)
-    await page.getByRole('heading', { name: 'Schemas' }).waitFor({ timeout: 30_000 })
+    await page
+        .getByRole('heading', { level: 1, name: schemaBody().title as string })
+        .waitFor({ timeout: 30_000 })
     await shot(page, 'schemas')
 
-    await page.goto(`/pipelines/${PIPELINE}/edit`)
+    await page.goto(`/pipelines/${PIPELINE}/$edit`)
     await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
     await page.locator('aside').getByRole('heading', { name: 'Config' }).waitFor({ timeout: 30_000 })
     const schemaTitle = schemaBody().title as string
@@ -223,7 +225,7 @@ test('the pictures docs/basics.md is built out of', async ({ page }) => {
     await shot(page, 'run-send')
 
     // The graph beside the document the instance holds: the editor, on its Source tab.
-    await page.goto(`/pipelines/${PIPELINE}/edit`)
+    await page.goto(`/pipelines/${PIPELINE}/$edit`)
     // The panel is shut until a step is chosen, and the tab row it opens carries Source.
     await page.locator('.react-flow__node').getByText('send', { exact: true }).click({ timeout: 30_000 })
     await page.locator('aside').getByRole('tab', { name: 'Source', exact: true }).click()
