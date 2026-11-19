@@ -16,7 +16,7 @@ async function shot(page: Page, mode: string, name: string, shell = true): Promi
     // The login screen stands outside the shell and has no corner to wait for.
     if (shell)
         await page
-            .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+            .getByRole('button', { name: /^Instance: .*\b(healthy|degraded|unhealthy)$/ })
             .waitFor({ timeout: 8000 })
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(OUT, `${name}--${mode}.png`) })
