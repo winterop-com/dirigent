@@ -5,6 +5,7 @@ different worker than its predecessor still sees its inputs.
 """
 
 import asyncio
+import errno
 import fcntl
 import os
 import re
@@ -111,7 +112,12 @@ def join_uri(prefix: str, *parts: str) -> str:
 
 
 def scratch_prefix(artifact_root: str, run_id: UUID) -> str:
-    """Return the run-scoped URI prefix blocks write intermediates under."""
+    """Return the run-scoped URI prefix blocks write intermediates under.
+
+    A ``file://`` root is spelled as an absolute path, the way a listing names what is under it.
+    """
+    if parse_uri(artifact_root)[0] == FileStorageBackend.scheme:
+        artifact_root = f"file://{local_path(artifact_root)}"
     return join_uri(artifact_root, "runs", str(run_id))
 
 
@@ -217,6 +223,34 @@ class FileStorageBackend(StorageBackend):
             raise
         return descriptor
 
+    def _made_parent(self, uri: str, path: Path) -> int:
+        """Open the directory a path is written into, making each missing component on the way.
+
+        Every component is made and opened relative to the descriptor of the one above it,
+        starting at the root, so a link swapped in after :meth:`path_for` looked cannot have a
+        directory made outside the root. A component that is a link is taken only when what it
+        opens is inside the root.
+        """
+        try:
+            below = path.parent.relative_to(self.root).parts
+        except ValueError:
+            below = path.parent.resolve().relative_to(self.root.resolve()).parts
+        self.root.mkdir(parents=True, exist_ok=True)
+        directory = os.open(self.root, DIRECTORY)
+        try:
+            for name in below:
+                with suppress(FileExistsError):
+                    os.mkdir(name, dir_fd=directory)
+                opened, followed = _open_component(name, directory)
+                os.close(directory)
+                directory = opened
+                if followed and not self._within_root(directory):
+                    raise OutsideRoot(uri, self.root)
+        except BaseException:
+            os.close(directory)
+            raise
+        return directory
+
     def _open_reader(self, uri: str, path: Path) -> BinaryIO:
         """Open a contained object for reading."""
         descriptor = self._open_within_root(uri, path, READING)
@@ -261,8 +295,7 @@ class FileStorageBackend(StorageBackend):
         swapped for a link mid-write cannot move the staged file or the target anywhere else.
         """
         path = self.path_for(uri)
-        await asyncio.to_thread(path.parent.mkdir, parents=True, exist_ok=True)
-        directory = await asyncio.to_thread(self._open_within_root, uri, path.parent, DIRECTORY)
+        directory = await asyncio.to_thread(self._made_parent, uri, path)
         try:
             # The nonce is per writer: two writers on one URI must not share a staging file.
             staged = f".{path.name}.{os.getpid()}.{uuid4().hex}.partial"
@@ -389,6 +422,17 @@ def _real_path(descriptor: int) -> Path:
         answer = fcntl.fcntl(descriptor, fcntl.F_GETPATH, bytes(MAX_PATH_BYTES))
         return Path(os.fsdecode(answer.partition(b"\0")[0]))
     return Path(os.readlink(f"/proc/self/fd/{descriptor}"))
+
+
+def _open_component(name: str, directory: int) -> tuple[int, bool]:
+    """Open a directory under a directory descriptor, and say whether a link was followed to it."""
+    try:
+        return os.open(name, DIRECTORY | os.O_NOFOLLOW, dir_fd=directory), False
+    except OSError as error:
+        # A link refused by O_NOFOLLOW is ELOOP on Linux and ENOTDIR on macOS.
+        if error.errno not in {errno.ELOOP, errno.ENOTDIR}:
+            raise
+    return os.open(name, DIRECTORY, dir_fd=directory), True
 
 
 def _create_staged(name: str, directory: int) -> BinaryIO:

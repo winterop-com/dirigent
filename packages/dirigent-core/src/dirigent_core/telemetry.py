@@ -408,14 +408,24 @@ def instrument_fastapi(app: Any) -> None:
     """Give every HTTP request a span, without depending on an instrumentation package."""
 
     async def span_per_request(request: Any, call_next: Callable[[Any], Any]) -> Any:
-        """Wrap one request in a span named after its path."""
+        """Wrap one request in a span named after its path.
+
+        An exception no handler answered is recorded by its class alone: its text may carry
+        what the request bound, such as a database error's parameters.
+        """
         path = request.url.path
         with _tracer.start_as_current_span(
             f"{request.method} {path}",
             kind=SpanKind.SERVER,
             attributes={"http.request.method": request.method, "url.path": path},
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span:
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception as error:
+                record_failure(span, f"unhandled {type(error).__name__}")
+                raise
             declared = getattr(request.state, "route_template", None)
             template = declared or getattr(request.scope.get("route"), "path", None)
             if isinstance(template, str):
