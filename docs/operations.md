@@ -720,7 +720,7 @@ exhaustion, which is exactly why it is refused up front.
 
 | Setting | Default | What it means |
 | --- | --- | --- |
-| `DIRIGENT_ARTIFACT_ROOT` | `file://./.dirigent/state/artifacts` | Default storage backend URI prefix for run scratch space and artifacts. The `file://` backend refuses to address anything outside this root. The default is relative to the working directory, beside the default SQLite database. |
+| `DIRIGENT_ARTIFACT_ROOT` | `file://./.dirigent/state/artifacts` | Default storage backend URI prefix for run scratch space and artifacts. The `file://` backend refuses to address anything outside this root. The default is relative to the working directory, beside the default SQLite database; a relative `file://` root is resolved against it, so every URI a run names is absolute. |
 | `DIRIGENT_WORK_ROOT` | `./.dirigent/state/work` | Directory on this worker's own filesystem for what a tool opens as files rather than through storage: a checkout, a build context, a compose file, a bind mount, a duckdb database. A path, not a URI, and never shared between workers. See [scratch and work](#scratch-and-work). |
 | `DIRIGENT_STORAGE_CONNECTIONS` | empty | Which connection configures each storage scheme, by code, as `scheme=connection`. `s3=archive` lets one instance hold several `s3` connections and still say which one `s3://` addresses. A scheme with no entry keeps whatever its package contributed it with, which for `s3://` is the ambient AWS credential chain. |
 | `DIRIGENT_INLINE_ARTIFACT_MAX` | `16kb` | Outputs at or below this serialized size are inlined into the artifact row; larger ones are streamed to the run's scratch prefix. Note this governs the artifact copy only -- the attempt row keeps the output whole either way. |

@@ -66,7 +66,21 @@ def test_join_uri_collapses_separators() -> None:
 
 def test_scratch_prefix_namespaces_a_run() -> None:
     run_id = uuid7()
-    assert scratch_prefix("file://./artifacts", run_id) == f"file://./artifacts/runs/{run_id}"
+    assert scratch_prefix("s3://bucket/artifacts", run_id) == f"s3://bucket/artifacts/runs/{run_id}"
+
+
+async def test_a_relative_file_root_is_a_scratch_prefix_its_listing_starts_with(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    run_id = uuid7()
+    storage = build_storage("file://./artifacts", [])
+    scratch = storage.scratch_for(run_id)
+    await storage.write_bytes(f"{scratch}/outputs/one.json", b"{}")
+
+    assert scratch == f"file://{tmp_path}/artifacts/runs/{run_id}"
+    listed = [found.uri async for found in storage.list(scratch)]
+    assert listed == [f"{scratch}/outputs/one.json"]
 
 
 def test_a_work_directory_is_run_scoped_and_absolute() -> None:
@@ -516,6 +530,26 @@ async def test_a_link_swapped_in_after_the_check_does_not_let_a_write_out(
         async with backend.open_write(f"file://{root}/runs/planted.txt") as sink:
             await sink.write(b"nope")
     assert sorted(path.name for path in outside.iterdir()) == ["secret.txt"]
+
+
+async def test_a_link_swapped_in_after_the_check_makes_no_directory_outside(
+    swapped: tuple[FileStorageBackend, Path, Path],
+) -> None:
+    backend, root, outside = swapped
+    with pytest.raises(OutsideRoot):
+        async with backend.open_write(f"file://{root}/runs/deeper/still/planted.txt") as sink:
+            await sink.write(b"nope")
+    assert sorted(path.name for path in outside.iterdir()) == ["secret.txt"]
+
+
+async def test_a_write_makes_its_directories_through_a_link_that_stays_inside_the_root(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    (root / "real").mkdir(parents=True)
+    (root / "alias").symlink_to(root / "real", target_is_directory=True)
+    backend = FileStorageBackend(root)
+    async with backend.open_write(f"file://{root}/alias/made/object.txt") as sink:
+        await sink.write(b"kept")
+    assert (root / "real" / "made" / "object.txt").read_bytes() == b"kept"
 
 
 async def test_a_link_swapped_in_after_the_check_does_not_let_a_delete_out(
