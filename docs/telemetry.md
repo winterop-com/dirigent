@@ -114,7 +114,9 @@ Four span shapes are opened at run time.
 
 A failing attempt marks its `step` span with an `ERROR` status carrying the block's own failure
 message; an exception is recorded on the span as well. An HTTP response of 500 or worse marks
-its request span `ERROR` with the status.
+its request span `ERROR` with the status. An exception no handler answered marks it `ERROR` with
+the exception's class alone, never its message or traceback, which can carry what the request
+bound, such as a database error's parameters.
 
 **A run is one trace.** The `run` span is the root every attempt of that run hangs from,
 however many workers claim them and however long after. What joins them is not a process:

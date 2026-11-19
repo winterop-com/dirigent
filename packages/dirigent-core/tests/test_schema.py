@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import command
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from dirigent_client.enums import AttemptStatus, RunStatus, TriggerKind
 from dirigent_core import migrations
@@ -288,6 +288,40 @@ async def test_a_pipeline_name_is_unique(engine: AsyncEngine) -> None:
     with pytest.raises(IntegrityError):
         async with session_scope(factory) as session:
             session.add(Pipeline(code="only-once"))
+
+
+async def a_bare_run(session: AsyncSession) -> Run:
+    """Store one run of a pipeline of its own, with no attempts."""
+    pipeline = Pipeline(code=f"bare-{uuid7().hex[:8]}")
+    session.add(pipeline)
+    await session.flush()
+    version = PipelineVersion(pipeline_id=pipeline.id, version=1, document={}, digest="sha256:" + "0" * 64)
+    session.add(version)
+    await session.flush()
+    run = Run(pipeline_id=pipeline.id, pipeline_version_id=version.id, params={}, triggered_by_kind=TriggerKind.ADHOC)
+    session.add(run)
+    await session.flush()
+    return run
+
+
+@pytest.mark.parametrize("built", ["metadata", "migrations"])
+async def test_a_step_outside_a_fan_out_has_one_attempt_of_each_number(sqlite_settings: Settings, built: str) -> None:
+    if built == "migrations":
+        await migrations.upgrade_async(settings=sqlite_settings)
+    engine = create_engine(sqlite_settings)
+    if built == "metadata":
+        async with engine.begin() as connection:
+            await connection.run_sync(Base.metadata.create_all)
+    factory = create_session_factory(engine)
+    try:
+        async with session_scope(factory) as session:
+            run = await a_bare_run(session)
+            session.add(StepAttempt(run_id=run.id, step_name="only", block_id="test.echo", attempt=1))
+        with pytest.raises(IntegrityError):
+            async with session_scope(factory) as session:
+                session.add(StepAttempt(run_id=run.id, step_name="only", block_id="test.echo", attempt=1))
+    finally:
+        await engine.dispose()
 
 
 async def test_the_migrations_leave_no_drift_against_the_models_on_sqlite(sqlite_settings: Settings) -> None:

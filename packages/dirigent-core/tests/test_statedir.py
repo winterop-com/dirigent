@@ -209,6 +209,20 @@ def test_a_split_index_is_followed_to_the_shared_one(tmp_path: Path) -> None:
     assert refusal(state) == "database.state_tracked"
 
 
+def test_a_state_a_sparse_index_folds_into_a_directory_entry_is_refused(tmp_path: Path) -> None:
+    """A sparse index names a directory outside the cone once, as its path and a trailing slash."""
+    committed_state(tmp_path)
+    (tmp_path / "kept").mkdir()
+    (tmp_path / "kept" / "file").write_text("inside the cone")
+    git("add", "kept", cwd=tmp_path)
+    git("commit", "-qm", "kept", cwd=tmp_path)
+    git("sparse-checkout", "set", "--cone", "--sparse-index", "kept", cwd=tmp_path)
+    state = honest_state(tmp_path)
+
+    assert b".dirigent/" in (tmp_path / ".git" / "index").read_bytes(), "the index did not fold the state"
+    assert refusal(state) == "database.state_tracked"
+
+
 def test_a_state_tracked_from_a_subdirectory_of_the_repository_is_refused(tmp_path: Path) -> None:
     state = honest_state(tmp_path / "repo" / "sub" / "project")
     git("init", "-q", cwd=tmp_path / "repo")
