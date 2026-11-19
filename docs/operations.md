@@ -1550,6 +1550,9 @@ DIRIGENT_RETENTION_NOTIFICATIONS=30d
 
 **A run is only pruned once it has settled.** A run with no `finished_at` is either still
 running or is the evidence of something that went wrong, and neither is deleted on an age.
+A settled run that a run still going descends from, through the `pipeline.run` steps that
+started each one, is kept until that run settles too: a step that starts a pipeline reads the
+whole chain above it to count its depth and refuse a cycle.
 
 **Pruning a run takes what the database cascades from it** -- its items, attempts, artifact
 refs and notifications go in the same statement. A shorter `retention_logs` is therefore a
