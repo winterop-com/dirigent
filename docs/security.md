@@ -566,6 +566,9 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+Once a token source's body has arrived, the source is read again: a call whose token was
+rotated, or whose source was paused, removed or changed meanwhile, is answered as the source
+stands now, and its body is handed to the source's current config.
 A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
 spellings, so handling a capped body costs time in step with its size. Any other `charset` is
 refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
