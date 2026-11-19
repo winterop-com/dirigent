@@ -3,7 +3,7 @@
 # A rule can be created by hand -- `dg alerts rules create`, the API, an MCP tool -- or declared
 # here, beside the steps it is about. A declared rule is keyed by its code, like a step, and it
 # takes the fields a pipeline-scoped rule takes through the API: `event`, `connection`,
-# `template`, `body`, `importance`, `throttle`, `active`, `name` and `description`. Its scope is
+# `template`, `body`, `importance`, `throttle`, `on_change`, `active`, `name` and `description`. Its scope is
 # always this pipeline, so there is no `scope:` and no `pipeline:` to write.
 #
 # THE DOCUMENT OWNS THEM. `dg apply` creates the rules, rewrites the ones that changed, and
@@ -87,6 +87,7 @@ alerts:
     throttle: 1h
 
   alerts-declared-recovered:
-    event: run_succeeded
+    # A success after a run that was not one, never every success.
+    event: run_recovered
     # Declared and switched off: the rule exists on the instance and raises nothing.
     active: false

@@ -1723,3 +1723,75 @@ def test_the_keyed_example_names_every_item_by_its_sites_code_under_both_steps()
         if event["message"] == "succeeded"
     }
     assert named == {(step, site) for step in ("probe", "check") for site in ("eu", "af", "as")}
+
+
+@pytest.fixture
+def playground() -> Iterator[str]:
+    """Serve the instance's playground routes alone on a real port, and hand back their base URL."""
+    import socket
+    import threading
+
+    import uvicorn
+    from fastapi import FastAPI
+
+    from dirigent_server.routes import playground as routes
+
+    served = FastAPI()
+    served.include_router(routes.router, prefix="/api/v1")
+    holder = socket.socket()
+    holder.bind(("127.0.0.1", 0))
+    holder.listen()
+    port = int(holder.getsockname()[1])
+    running = uvicorn.Server(uvicorn.Config(served, host="127.0.0.1", port=port, log_config=None))
+    thread = threading.Thread(target=lambda: running.run(sockets=[holder]), daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 20
+    while not running.started and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert running.started, "the playground did not start"
+    try:
+        yield f"http://127.0.0.1:{port}/api/v1/playground"
+    finally:
+        running.should_exit = True
+        thread.join(timeout=20)
+        holder.close()
+
+
+def health_grid(stdout: str) -> tuple[str, dict[tuple[str, str], str]]:
+    """Read a health-check run's ending and how each check of each target, by its code, settled."""
+    settled = {
+        (event["step"], event["item"]): event["message"]
+        for event in of_kind(records(stdout), "step")
+        if event["message"] in {"succeeded", "failed", "skipped"}
+    }
+    return closing(stdout)["message"], settled
+
+
+def targets_param(**urls: str) -> str:
+    """The targets parameter, one ``{code, url}`` record per keyword."""
+    return "targets=" + json.dumps([{"code": code, "url": url} for code, url in urls.items()])
+
+
+CHECKS = ("reachable", "answers_well", "guards_pages")
+
+
+def test_the_health_checks_pass_every_check_on_every_target_that_answers(playground: str) -> None:
+    targets = targets_param(address=playground, name=playground.replace("127.0.0.1", "localhost"))
+    result = invoke("run", "--local", str(EXAMPLES / "recipes" / "health-checks.yaml"), "-p", targets)
+    ended, grid = health_grid(result.stdout)
+    assert ended == "succeeded", result.output
+    assert grid == {(check, code): "succeeded" for check in CHECKS for code in ("address", "name")}
+
+
+def test_the_health_checks_skip_what_a_target_that_is_gone_cannot_pass(playground: str) -> None:
+    """One failure for the target that is down, its later checks skipped, the other target passing."""
+    targets = targets_param(live=playground, retired=f"{playground}/retired")
+    result = invoke("run", "--local", str(EXAMPLES / "recipes" / "health-checks.yaml"), "-p", targets)
+    ended, grid = health_grid(result.stdout)
+    assert ended == "completed_with_errors", result.output
+    assert grid == {
+        **{(check, "live"): "succeeded" for check in CHECKS},
+        ("reachable", "retired"): "failed",
+        ("answers_well", "retired"): "skipped",
+        ("guards_pages", "retired"): "skipped",
+    }

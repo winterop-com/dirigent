@@ -1,0 +1,38 @@
+# The clock of a health monitor: the checks in examples/recipes/health-checks.yaml, every
+# twenty minutes.
+#
+# The checks and their clock are two documents because they change for different reasons:
+# a new target or a stricter check is an edit to the pipeline, and checking more often during
+# an incident is an edit here, by whoever is on call, without touching the checks.
+#
+# A cron rather than an interval, so the runs land on :00, :20 and :40 and a run in the
+# history lines up with the wall clock somebody is reading an alert against. The pipeline is
+# `concurrency: skip`, so a firing that finds the previous run still checking creates no run.
+#
+# The targets are pinned here rather than left to the pipeline's default, which is where a
+# schedule says what it watches: a second clock over a staging list is a second schedule in
+# this file.
+#
+#   dg apply examples/recipes/health-checks.yaml                   # the checks and their alert rules
+#   dg apply examples/triggers/health-checks-every-20-minutes.yaml # their clock
+#   dg schedule list health-checks
+#
+# There is nothing to run: this document has no steps. `dg run --local` on it refuses and
+# says to run the pipeline it names.
+
+format: dirigent/v1
+kind: triggers
+code: health-checks-every-20-minutes
+name: Health checks, every twenty minutes
+description: Run the health checks every twenty minutes, against a pinned list of targets.
+
+pipeline: health-checks
+
+triggers:
+  schedules:
+    - code: every-20-minutes
+      cron: "*/20 * * * *"
+      params:
+        targets:
+          - {code: by-address, url: http://127.0.0.1:3333/api/v1/playground}
+          - {code: by-name, url: http://localhost:3333/api/v1/playground}
