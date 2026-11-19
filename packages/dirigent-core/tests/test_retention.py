@@ -3,11 +3,13 @@
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import (
     AttemptStatus,
@@ -323,6 +325,25 @@ async def test_a_run_retried_while_its_artifacts_are_cleared_keeps_its_rows(
     assert (await session.get(Run, run.id)) is not None
 
 
+async def test_on_sqlite_storage_is_cleared_with_no_transaction_open(
+    session: AsyncSession, settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The transaction holds the instance's one write lock, which a slow backend must not."""
+    storage = build_storage(settings.artifact_root, [])
+    await a_run(session, finished_at=NOW, age=timedelta(days=40))
+    open_while_clearing: list[bool] = []
+
+    async def clear(_uri: str) -> int:
+        open_while_clearing.append(session.in_transaction())
+        return 1
+
+    monkeypatch.setattr(storage, "delete_prefix", clear)
+    swept = await retention.sweep(session, retention.Policy(runs=timedelta(days=30)), storage=storage, now=NOW)
+
+    assert swept.counts == {"runs": 1}
+    assert open_while_clearing == [False]
+
+
 async def test_scratch_can_be_left_alone(session: AsyncSession, settings: Settings) -> None:
     """An instance whose artifacts are somebody else's to reap says so."""
     storage = build_storage(settings.artifact_root, [])
@@ -372,6 +393,28 @@ async def test_a_work_directory_goes_when_its_run_has_outlived_the_policy(
     assert not (root / "runs" / str(pruned)).exists()
     assert (root / "runs" / str(young.id)).exists()
     assert (root / "runs" / "not-a-run").exists(), "a directory no run made is left alone"
+
+
+async def test_a_work_sweep_binds_its_directories_a_batch_at_a_time(
+    session: AsyncSession, db_engine: AsyncEngine, tmp_path: Path
+) -> None:
+    """A driver binds a bounded number of parameters to one statement, and a worker can hold more runs."""
+    root = tmp_path / "work"
+    for _ in range(retention.BATCH + 1):
+        (root / "runs" / str(uuid4())).mkdir(parents=True)
+    bound: list[int] = []
+
+    def seen(_connection: Any, _cursor: Any, _statement: str, parameters: Any, *_rest: Any) -> None:
+        bound.append(len(parameters or ()))
+
+    event.listen(db_engine.sync_engine, "before_cursor_execute", seen)
+    try:
+        swept = await retention.sweep_work(session, str(root), retention.Policy(runs=timedelta(days=30)), now=NOW)
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", seen)
+
+    assert swept == retention.BATCH + 1
+    assert max(bound) <= retention.BATCH + 1, "every directory was bound into one statement"
 
 
 async def test_no_run_age_sweeps_no_work_directory(session: AsyncSession, tmp_path: Path) -> None:
