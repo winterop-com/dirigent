@@ -1,6 +1,7 @@
 """``dg run --local``: apply and run a document with no server, and say what happened."""
 
 import asyncio
+import json
 import re
 import shutil
 import sys
@@ -29,6 +30,7 @@ from clisupport import (
 from dirigent_cli import local
 from dirigent_cli.commands import GUARD_EXIT, split_unsafe
 from dirigent_cli.local import (
+    ITEM_LABEL_MAX,
     LOCAL_LOG_PAGE,
     POLL_CEILING,
     POLL_SECONDS,
@@ -615,12 +617,18 @@ def test_the_late_fan_out_example_streams_its_items_and_never_the_gate_they_repl
         for event in of_kind(records(result.stdout), "step")
         if event["step"] == "read"
     ]
-    assert {item for item, message in streamed if message == "succeeded"} == {"0", "1", "2", "3"}
     assert all(item is not None for item, _ in streamed), "no transition belongs to the gate"
     end = closing(result.stdout)
     assert end["message"] == "succeeded"
     summary = next(step for step in end["steps"] if step["step"] == "summary")
     assert summary["output"]["value"]["stations"] == 4
+    # Each element is a station's record, named by its compact JSON, or by its position when that is too long to show.
+    named = [
+        json.dumps({"station": read["station"]}, separators=(",", ":"), ensure_ascii=False)
+        for read in summary["output"]["value"]["read"]
+    ]
+    expected = {name if len(name) <= ITEM_LABEL_MAX else str(index) for index, name in enumerate(named)}
+    assert {item for item, message in streamed if message == "succeeded"} == expected
 
 
 def test_the_late_fan_out_example_skips_its_fan_out_over_an_empty_listing() -> None:
