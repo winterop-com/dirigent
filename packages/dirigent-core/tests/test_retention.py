@@ -114,6 +114,36 @@ async def test_an_unfinished_run_is_never_pruned(session: AsyncSession) -> None:
     assert await counted(session, Run) == 1
 
 
+async def started_by(session: AsyncSession, run: Run, starter: Run) -> None:
+    """Record that a step of one run started another, as pipeline.run does."""
+    await session.execute(
+        sa.update(Run)
+        .where(Run.id == run.id)
+        .values(triggered_by_kind=TriggerKind.PIPELINE, triggered_by_id=starter.id, triggered_by_label="a step")
+    )
+
+
+async def test_a_settled_run_a_running_chain_descends_from_is_kept(session: AsyncSession) -> None:
+    """A step that starts a pipeline reads the whole chain above it for its depth and its cycles."""
+    root = await a_run(session, finished_at=NOW, age=timedelta(days=40))
+    middle = await a_run(session, finished_at=NOW, age=timedelta(days=40))
+    running = await a_run(session, finished_at=None)
+    await started_by(session, middle, root)
+    await started_by(session, running, middle)
+    policy = retention.Policy(runs=timedelta(days=30))
+
+    assert await retention.counted(session, policy, now=NOW) == {}
+    swept = await retention.sweep(session, policy, now=NOW)
+
+    assert swept.counts == {}
+    assert await counted(session, Run) == 3
+
+    await session.execute(sa.update(Run).where(Run.id == running.id).values(finished_at=NOW - timedelta(days=40)))
+    swept = await retention.sweep(session, policy, now=NOW)
+
+    assert swept.counts == {"runs": 3}, "once the chain has settled, every run in it may go"
+
+
 async def test_pruning_a_run_takes_what_the_database_cascades_from_it(session: AsyncSession) -> None:
     """A run's logs go with it, so a short log age is a trim rather than the only sweep."""
     run = await a_run(session, finished_at=NOW, age=timedelta(days=40))
