@@ -237,6 +237,9 @@ async def _prune_runs(
     cleared = False
     if policy.scratch and storage is not None:
         cleared = True
+        if not is_postgres(session):
+            # SQLite's transaction holds the instance's one write lock until it ends.
+            await session.commit()
         keys = await _clear_scratch(storage, keys, swept)
         if not keys:
             return 0
@@ -269,13 +272,16 @@ async def sweep_work(session: AsyncSession, work_root: str, policy: Policy, *, n
     if not held:
         return 0
     threshold = (now or datetime.now(UTC)) - policy.runs
-    keeping = await session.execute(
-        sa.select(Run.id).where(
-            Run.id.in_([UUID(name) for name in held]), sa.or_(~SETTLED, Run.finished_at >= threshold)
+    names = list(held)
+    keeping: set[str] = set()
+    for start in range(0, len(names), BATCH):
+        chunk = [UUID(name) for name in names[start : start + BATCH]]
+        found = await session.execute(
+            sa.select(Run.id).where(Run.id.in_(chunk), sa.or_(~SETTLED, Run.finished_at >= threshold))
         )
-    )
+        keeping.update(str(run_id) for run_id in found.scalars())
     swept = 0
-    for name in held.keys() - {str(run_id) for run_id in keeping.scalars()}:
+    for name in held.keys() - keeping:
         try:
             shutil.rmtree(held[name])
         except OSError as error:
