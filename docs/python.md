@@ -350,7 +350,8 @@ async def test_it_greets(block_ctx):
 `call_block` validates the config against the block's own `config_model` first, the way the
 engine does, and then makes the block's first call: an operator's `execute` or a sensor's
 `poke`. `block_ctx` is a `FakeContext` -- a recording logger, real storage over a temporary
-directory, an HTTP client built on a handler the test installs, and an in-memory runs facade.
+directory, the engine's HTTP client for an installed connection (its base URL, credential and
+timeout) with a handler the test installs in place of the network, and an in-memory runs facade.
 The recording logger keeps each field in the shape the engine stores it in, so a block that logs
 a `datetime` sees its ISO 8601 text in `block_ctx.log.entries`, as the run's log would hold it.
 `block_ctx` refuses what the engine refuses, the way the engine does: a connection, a client or a schema

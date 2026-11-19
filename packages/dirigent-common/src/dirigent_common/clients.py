@@ -41,7 +41,7 @@ DEFAULT_HTTP_TIMEOUT: Final = 30.0
 AUTHORIZATION: Final = "Authorization"
 
 
-def build_client(config: BaseModel) -> httpx2.AsyncClient:
+def build_client(config: BaseModel, *, transport: httpx2.AsyncBaseTransport | None = None) -> httpx2.AsyncClient:
     """Build a client from any connection config that names the standard HTTP fields.
 
     The fields are read by name, so a config that names none of them gets a bare client.
@@ -58,6 +58,8 @@ def build_client(config: BaseModel) -> httpx2.AsyncClient:
 
     Every one of these is sent only to the origin of ``base_url``: a request to any other
     origin, such as an absolute link a response handed back, goes without it.
+
+    ``transport`` replaces the network, which is how a test double answers the requests.
     """
     base_url = _text(config, BASE_URL_FIELD) or ""
     configured = getattr(config, TIMEOUT_FIELD, None)
@@ -97,6 +99,7 @@ def build_client(config: BaseModel) -> httpx2.AsyncClient:
         verify=bool(verify),
         timeout=timeout,
         event_hooks=hooks,
+        transport=transport,
     )
 
 

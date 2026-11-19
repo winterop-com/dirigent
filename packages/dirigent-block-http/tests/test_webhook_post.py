@@ -213,9 +213,10 @@ async def test_a_receiver_with_an_unusual_success_code_is_declared_rather_than_g
 
 async def test_a_post_without_an_override_inherits_the_connections_timeout(ctx: FakeContext) -> None:
     """An unset override must not become "no timeout": a receiver that never answers would hold a worker."""
+    ctx.connections["peer"] = HttpConnectionConfig(base_url="http://service.test", timeout=timedelta(seconds=7))
     handler = wired(ctx)
     await WebhookPostOperator().execute(WebhookPostConfig(connection="peer", path="/x"), ctx.as_context())
-    assert handler.requests[0].extensions["timeout"] == {"connect": 5.0, "read": 5.0, "write": 5.0, "pool": 5.0}
+    assert handler.requests[0].extensions["timeout"] == {"connect": 7.0, "read": 7.0, "write": 7.0, "pool": 7.0}
 
 
 async def test_a_configured_timeout_overrides_the_connections_on_a_post(ctx: FakeContext) -> None:
