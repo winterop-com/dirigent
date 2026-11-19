@@ -62,6 +62,9 @@ RUNNER_STOP_SECONDS = 1.0
 #: line, and the worker holds that line and the values parsed from it at once.
 RUNNER_REPLY_LIMIT = 64 * 1024 * 1024
 
+#: How long a runner no step holds is kept for the next one before it is stopped.
+RUNNER_IDLE_SECONDS = 300.0
+
 
 def _own_group() -> dict[str, Any]:
     """The Popen arguments that start a process outside the worker's process group."""
@@ -185,21 +188,26 @@ class _Runners:
     """The runner processes this worker keeps: one per command, and one per step running at a time.
 
     A step holds one for as long as its program runs and gives it back after, so two steps
-    never meet on one pipe. A process is started when there is none to hand out and then
-    lives on, because starting one costs more than every program a step runs through it; it
-    is stopped when the worker exits. A process that was killed is not handed out again.
+    never meet on one pipe. A process is started when there is none to hand out and is kept
+    for the next step, because starting one costs more than every program a step runs
+    through it. One no step has taken for ``RUNNER_IDLE_SECONDS`` is stopped, so a burst of
+    concurrent steps does not leave its peak of processes behind; every one left is stopped
+    when the worker exits. A process that was killed is not handed out again.
     """
 
     def __init__(self) -> None:
         """Start with no processes; the first step that needs one starts it."""
         self._idle: dict[tuple[str, ...], list[ProgramRunner]] = {}
         self._every: set[ProgramRunner] = set()
+        self._expiries: dict[ProgramRunner, asyncio.TimerHandle] = {}
+        self._stopping: set[asyncio.Future[None]] = set()
 
     async def take(self, command: Sequence[str]) -> ProgramRunner:
         """Hand out an idle process for a command, starting one off the event loop when there is none."""
         idle = self._idle.setdefault(tuple(command), [])
         while idle:
             runner = idle.pop()
+            self._keep(runner)
             if runner.alive:
                 return runner
             self._every.discard(runner)
@@ -217,8 +225,28 @@ class _Runners:
         """Take a process back for the next step that runs its command, unless it was killed."""
         if runner.alive:
             self._idle.setdefault(runner.command, []).append(runner)
+            loop = asyncio.get_running_loop()
+            self._expiries[runner] = loop.call_later(RUNNER_IDLE_SECONDS, self._expire, runner)
         else:
             self._every.discard(runner)
+
+    def _keep(self, runner: ProgramRunner) -> None:
+        """Call off the stop an idle process was due, now that a step has taken it."""
+        expiry = self._expiries.pop(runner, None)
+        if expiry is not None:
+            expiry.cancel()
+
+    def _expire(self, runner: ProgramRunner) -> None:
+        """Stop a process no step has taken since it was given back, off the event loop."""
+        self._expiries.pop(runner, None)
+        idle = self._idle.get(runner.command, [])
+        if runner not in idle:
+            return
+        idle.remove(runner)
+        self._every.discard(runner)
+        stopping = asyncio.ensure_future(asyncio.to_thread(runner.stop))
+        self._stopping.add(stopping)
+        stopping.add_done_callback(self._stopping.discard)
 
     def shutdown(self) -> None:
         """Stop every process this pool started, so none outlives the one that started it.
@@ -228,6 +256,9 @@ class _Runners:
         """
         idle = {runner for kept in self._idle.values() for runner in kept}
         self._idle.clear()
+        for expiry in self._expiries.values():
+            expiry.cancel()
+        self._expiries.clear()
         every, self._every = self._every, set()
         for runner in every:
             if runner in idle:

@@ -322,6 +322,42 @@ async def test_a_runner_that_ran_a_step_is_handed_to_the_next_one(
     assert taken[0] is taken[1]
 
 
+async def test_a_runner_no_step_takes_for_a_while_is_stopped(
+    block_ctx: FakeContext, taken: list[ProgramRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A burst of concurrent steps leaves no peak of idle processes behind it."""
+    monkeypatch.setattr(runners, "RUNNER_IDLE_SECONDS", 0.05)
+    await call_block(EchoTransformer(), {"input": "ada", "program": "echo"}, block_ctx)
+
+    async with asyncio.timeout(10):
+        while taken[0].alive:
+            await asyncio.sleep(0.01)
+
+    idle = runners._RUNNERS._idle  # pyright: ignore[reportPrivateUsage] - the stopped one is not handed out
+    assert all(taken[0] not in kept for kept in idle.values())
+    await call_block(EchoTransformer(), {"input": "grace", "program": "echo"}, block_ctx)
+    assert taken[1] is not taken[0]
+    assert taken[1].alive
+
+
+async def test_a_runner_taken_again_before_its_idle_time_is_not_stopped_under_the_step(
+    block_ctx: FakeContext, taken: list[ProgramRunner], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(runners, "RUNNER_IDLE_SECONDS", 0.2)
+    await call_block(EchoTransformer(), {"input": "ada", "program": "echo"}, block_ctx)
+    running = asyncio.create_task(call_block(EchoTransformer(), {"input": 1, "program": "forever"}, block_ctx))
+    async with asyncio.timeout(10):
+        while len(taken) < 2:
+            await asyncio.sleep(0.01)
+    await asyncio.sleep(0.4)
+
+    assert taken[1] is taken[0]
+    assert taken[1].alive, "the idle stop reached a runner a step holds"
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+
+
 def test_an_engine_that_reads_its_own_language_refuses_a_bad_program_at_apply() -> None:
     config = EchoMapper.config_model.model_validate({"input": READINGS, "program": "quadruple"})
 
