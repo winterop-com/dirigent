@@ -10,7 +10,7 @@ from typing import Any, cast
 
 import httpx2
 import pytest
-from pydantic import JsonValue, ValidationError
+from pydantic import BaseModel, JsonValue, ValidationError
 
 from dirigent_block_execute.docker import (
     LOGS_SINCE,
@@ -306,6 +306,14 @@ def test_a_tcp_docker_host_resolves_to_an_http_base_url(monkeypatch: pytest.Monk
     assert endpoint.socket is None
     assert endpoint.verify is True
     assert endpoint.cert is None
+
+
+def test_a_resolved_endpoint_is_a_frozen_model_read_by_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Results crossing modules are pydantic models, which nothing can unpack by position."""
+    monkeypatch.delenv("DOCKER_HOST", raising=False)
+    endpoint = resolve_endpoint("/tmp/explicit.sock")
+    assert isinstance(endpoint, BaseModel)
+    assert endpoint.model_config.get("frozen") is True
 
 
 def test_a_docker_host_in_a_scheme_the_worker_cannot_speak_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
