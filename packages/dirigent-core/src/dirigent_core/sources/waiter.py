@@ -18,6 +18,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import defer, load_only
 
 from dirigent_client.enums import AttemptStatus, RunStatus
 from dirigent_common import JsonMap
@@ -206,10 +207,21 @@ class Waiter:
         async with self.sessions() as session:
             found = await session.execute(sa.select(Run.id, Run.status).where(Run.id.in_(run_ids)))
             statuses: dict[UUID, RunStatus] = {run_id: run_status for run_id, run_status in found}
-            attempts = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id.in_(run_ids)))).scalars()
+            unread = (defer(StepAttempt.output), defer(StepAttempt.fetched_output))
+            reading = sa.select(StepAttempt).where(StepAttempt.run_id.in_(run_ids)).options(*unread)
             by_run: dict[UUID, list[StepAttempt]] = {}
-            for attempt in attempts:
+            for attempt in (await session.execute(reading)).scalars():
                 by_run.setdefault(attempt.run_id, []).append(attempt)
+            answering = {
+                attempt.id
+                for caller in callers
+                for attempt in _succeeded_replies(caller.hold, by_run.get(caller.hold.run_id, []))
+            }
+            if answering:
+                outputs = (
+                    sa.select(StepAttempt).where(StepAttempt.id.in_(answering)).options(load_only(StepAttempt.output))
+                )
+                await session.execute(outputs)
         for caller in callers:
             answer = answer_of(caller.hold, statuses.get(caller.hold.run_id), by_run.get(caller.hold.run_id, []))
             if answer is not None and not caller.future.done():
@@ -219,11 +231,10 @@ class Waiter:
 def answer_of(hold: Hold, status: RunStatus | None, attempts: Sequence[StepAttempt]) -> Answer | None:
     """Say what a held caller is answered with now, or nothing while a reply may still answer."""
     newest = latest_attempts(attempts).values()
-    for attempt in newest:
-        if attempt.step_name in hold.replies and attempt.status is AttemptStatus.SUCCEEDED:
-            rendered = attempt.output or {}
-            if rendered.get("delivered") is True:
-                return Replied(step=attempt.step_name, rendered=rendered)
+    for attempt in _succeeded_replies(hold, attempts):
+        rendered = attempt.output or {}
+        if rendered.get("delivered") is True:
+            return Replied(step=attempt.step_name, rendered=rendered)
     open_replies = [a for a in newest if a.step_name in hold.replies and a.status in UNSETTLED]
     if open_replies and status not in _SETTLED_RUNS:
         return None
@@ -239,6 +250,12 @@ def answer_of(hold: Hold, status: RunStatus | None, attempts: Sequence[StepAttem
         step=first.step_name,
         error_class=ErrorClass(first.error_class) if first.error_class in set(ErrorClass) else ErrorClass.UNKNOWN,
     )
+
+
+def _succeeded_replies(hold: Hold, attempts: Sequence[StepAttempt]) -> list[StepAttempt]:
+    """The newest attempts of a hold's replies that succeeded, the only ones whose output can answer it."""
+    newest = latest_attempts(attempts).values()
+    return [a for a in newest if a.step_name in hold.replies and a.status is AttemptStatus.SUCCEEDED]
 
 
 _SETTLED_RUNS: Final = frozenset(
