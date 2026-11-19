@@ -474,6 +474,70 @@ def test_running_a_document_writes_the_apply_record_and_the_token_it_minted(tmp_
     assert [minted["code"] for minted in applied["sources"]["tokens"]] == ["ask"]
 
 
+def test_running_a_document_the_instance_refuses_says_so_as_dg_apply_does(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "refused.yaml"
+    path.write_text(DOCUMENT.replace("block: ", "block: nope.", 1))
+    result = machine("run", str(path))
+    assert result.exit_code == 1
+    assert only(result.stdout, "apply")["fields"]["plan"]["action"] == "invalid"
+    refused = only(result.stdout, "validation")
+    assert (refused["level"], refused["document"]) == ("error", str(path))
+    assert refused["problems"], "each problem the plan found"
+    assert of_kind(records(result.stdout), "error") == []
+    assert of_kind(records(result.stdout), "run") == []
+
+
+def test_a_relayed_log_line_names_the_fan_out_element_that_wrote_it(tmp_path: Path, server: str) -> None:
+    import sqlalchemy as sa
+
+    from dirigent_client.enums import LogLevel
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+    from dirigent_core.models import LogEntry, Run, RunItem, StepAttempt
+
+    path = tmp_path / "fan-out.yaml"
+    path.write_text(FAN_OUT)
+    assert invoke("run", str(path)).exit_code == 0
+
+    async def log_from_each_element() -> None:
+        engine = create_engine(Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}"))
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                run = (await session.execute(sa.select(Run))).scalar_one()
+                pairs = await session.execute(
+                    sa.select(StepAttempt, RunItem)
+                    .join(RunItem, StepAttempt.run_item_id == RunItem.id)
+                    .where(StepAttempt.step_name == "shape")
+                    .order_by(RunItem.item_index)
+                )
+                for attempt, item in pairs.all():
+                    session.add(
+                        LogEntry(
+                            run_id=run.id,
+                            run_item_id=item.id,
+                            step_attempt_id=attempt.id,
+                            step_name="shape",
+                            level=LogLevel.INFO,
+                            message="echoed",
+                        )
+                    )
+                session.add(LogEntry(run_id=run.id, level=LogLevel.INFO, message="claimed"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(log_from_each_element())
+
+    logged = machine("runs", "logs", latest_run())
+
+    assert logged.exit_code == 0, logged.output
+    lines = of_kind(records(logged.stdout), "log")
+    assert sorted((line["message"], line.get("item")) for line in lines) == [
+        ("claimed", None),
+        ("echoed", "east"),
+        ("echoed", "north"),
+        ("echoed", "west"),
+    ]
+
+
 def _project(tmp_path: Path, *codes: str) -> Path:
     """A project whose pipelines directory holds one document per code."""
     (tmp_path / "dirigent.yaml").write_text("project:\n  pipelines: pipelines\n")

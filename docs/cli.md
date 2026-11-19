@@ -589,7 +589,8 @@ dg run --local ./daily-load.yaml                # no server anywhere
 
 Running a document applies it first, and says so the way `dg apply` does: an `apply` record
 with the plan, and the token or signing secret the apply minted for each new source, shown
-once.
+once. A document the instance refuses is a `validation` record at `error` level with its
+`problems[]`, as from `dg apply`, and nothing is run.
 
 `--local` needs the things a serverless run has nowhere to read from:
 
@@ -1095,7 +1096,7 @@ adds to them:
 | --- | --- |
 | `run` | The run itself, opening and closing. Opening: `pipeline`, `run_id`, `local`, `scratch`. Closing: `exit_code`, `error`, `steps`, `failures`, `kept_at` |
 | `step` | One state an attempt passed through: `block`, `attempt`, and `duration_ms` on the one it settles in |
-| `log` | A line a step wrote, with whatever it bound in `fields`; `dg runs logs` writes the same kind, followed or not |
+| `log` | A line a step wrote, with whatever it bound in `fields` and, from one element of a fan-out, that element's `item`; `dg runs logs` writes the same kind, followed or not |
 | `output` | What a step produced, at `-v` and above; a block's own shape, so an HTTP call adds `status`, `headers`, `body`, `body_bytes` |
 | `error` | A refusal, from the server or from the CLI |
 
