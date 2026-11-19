@@ -1,9 +1,42 @@
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from jsonschema import FormatChecker
 
-from dirigent_common import Unresolvable, outward_references, reference_targets, schema_code_of, value_errors
+from dirigent_common import (
+    Unresolvable,
+    held_references,
+    outward_references,
+    reference_targets,
+    schema_code_of,
+    unresolved_references,
+    value_errors,
+)
+
+
+def test_unresolved_references_are_named_where_they_sit_and_resolve_as_a_validator_resolves_them() -> None:
+    schema: dict[str, Any] = {
+        "$defs": {
+            "day": {"type": "string"},
+            "nested": {"$id": "https://example.org/nested.json", "$defs": {"x": {}}, "$ref": "#/$defs/x"},
+        },
+        "properties": {
+            "day": {"$ref": "#/$defs/day"},
+            "draft": {"$ref": "https://json-schema.org/draft/2020-12/schema"},
+            "sibling": {"$ref": "https://example.org/nested.json"},
+            "gone": {"anyOf": [{"$ref": "#/$defs/nope"}]},
+            "named": {"items": {"$ref": "station-code"}},
+            "constant": {"const": {"$ref": "not-a-schema"}},
+        },
+    }
+    assert unresolved_references(schema) == [
+        ("properties/gone/anyOf/0", "#/$defs/nope"),
+        ("properties/named/items", "station-code"),
+    ]
+    held = held_references({"station-code": {"type": "string"}}.get)
+    assert unresolved_references(schema, held) == [("properties/gone/anyOf/0", "#/$defs/nope")]
+    assert unresolved_references({"$ref": "#/$defs/nope"}) == [("(root)", "#/$defs/nope")]
 
 
 @pytest.mark.parametrize(

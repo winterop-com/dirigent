@@ -99,6 +99,7 @@ from dirigent_common.schema_references import (
     outward_references,
     reference_targets,
     schema_code_of,
+    unresolved_references,
 )
 from dirigent_common.schema_values import (
     EvaluationOverrun,
@@ -139,6 +140,7 @@ __all__ = [
     "outward_references",
     "reference_targets",
     "schema_code_of",
+    "unresolved_references",
     "REDACTED",
     "BoundedLoader",
     "EvaluationOverrun",

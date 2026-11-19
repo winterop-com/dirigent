@@ -1129,6 +1129,8 @@ const refused = {
             '{reference} reads {field}, and the output of step {step} ({block}) has no such field. It has {fields}.',
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
+        params_reference_unresolvable:
+            'The parameter schema references {ref} at {at}, which resolves to nothing within the schema. A parameter schema reaches only its own definitions and the published JSON Schema drafts.',
         reference_bracket_index:
             '${{{reference}}} indexes with brackets, and a reference reads an element as a dotted segment. Write ${{{dotted}}}.',
         carried_connection_secret:
@@ -1176,6 +1178,8 @@ const refused = {
         invalid: 'Parameter {location} is invalid: {detail}',
         schema_invalid:
             "The pipeline's parameter schema is not itself valid JSON Schema ({problem}). Apply a corrected document to fix it.",
+        reference_unresolvable:
+            "The pipeline's parameter schema references {ref} at {at}, which resolves to nothing within the schema. Apply a corrected document to fix it.",
         too_deep: 'The parameters nest deeper than the {limit} levels of lists and objects a run stores.',
         unchecked:
             "The parameters were not checked against the pipeline's parameter schema within {timeout}.",

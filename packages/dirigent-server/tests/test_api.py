@@ -1465,8 +1465,7 @@ def test_a_stored_parameter_schema_that_is_not_a_schema_is_answered_with_a_reada
     refused = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {"greeting": "hei"}})
 
     assert refused.status_code == 422, refused.text
-    assert "parameter schema is not itself valid JSON Schema" in refused.json()["detail"]
-    assert "apply a corrected document" in refused.json()["detail"]
+    assert refused.json()["code"] == "parameter.schema_invalid"
 
 
 def test_an_ad_hoc_run_may_declare_the_window_it_covers(client: TestClient) -> None:

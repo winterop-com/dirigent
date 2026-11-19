@@ -24,6 +24,7 @@ from dirigent_common import (
     ValueValidator,
     bounded_evaluation,
     compile_template,
+    unresolved_references,
 )
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_common.durations import Duration, format_duration
@@ -39,6 +40,7 @@ from dirigent_core.messages import (
     KEY_WITHOUT_FAN_OUT,
     ON_CHANGE_UNSETTLED,
     PARAMETER_INVALID,
+    PARAMETER_REFERENCE_UNRESOLVABLE,
     PARAMETER_SCHEMA_INVALID,
     PARAMETER_UNCHECKED,
     PARAMETERS_TOO_DEEP,
@@ -813,7 +815,8 @@ class PipelineDefinition(BaseModel):
 
         The schema is checked before it is used, because a version stored before that check
         existed can hold a schema that is not one, and jsonschema then raises something no
-        caller of this method catches.
+        caller of this method catches. Each ``$ref`` in it has to resolve within the schema or
+        the published drafts, and the first that does not is named.
 
         The check runs where it is called and stops at ``PARAMETERS_CHECKED_WITHIN``, or once
         ``stopped`` is set. A caller on the event loop uses :meth:`check_params` instead.
@@ -823,6 +826,13 @@ class PipelineDefinition(BaseModel):
             raise ParameterError(PARAMETERS_TOO_DEEP, limit=MAX_STORED_DEPTH)
         try:
             Draft202012Validator.check_schema(self.params)
+        except Exception as error:
+            raise ParameterError(PARAMETER_SCHEMA_INVALID, problem=_schema_problem(error)) from error
+        unresolved = unresolved_references(self.params, LOCAL_REFERENCES)
+        if unresolved:
+            at, ref = unresolved[0]
+            raise ParameterError(PARAMETER_REFERENCE_UNRESOLVABLE, ref=repr(ref), at=at)
+        try:
             validator = ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES)
             with bounded_evaluation(PARAMETERS_CHECKED_WITHIN, stopped):
                 validator.validate(resolved)
@@ -833,8 +843,8 @@ class PipelineDefinition(BaseModel):
             raise ParameterError(PARAMETER_UNCHECKED, timeout=format_duration(error.within)) from error
         except Exception as error:
             # Anything but a validation error here is the pipeline's schema failing, not the
-            # supplied parameters: an unknown type, an unresolvable $ref, a subschema that is
-            # not a schema. Each raises a different jsonschema type, several of them private.
+            # supplied parameters: an unknown type, a subschema that is not a schema. Each raises
+            # a different jsonschema type, several of them private.
             raise ParameterError(PARAMETER_SCHEMA_INVALID, problem=_schema_problem(error)) from error
         return resolved
 
