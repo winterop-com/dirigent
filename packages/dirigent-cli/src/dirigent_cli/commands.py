@@ -44,7 +44,6 @@ from dirigent_cli.messages import (
     CANNOT_PROMPT_SET,
     CONCURRENCY_REFUSED,
     DEADLINE_IS_LOCAL_ONLY,
-    DOCUMENT_INVALID,
     EMPTY_SECRET_ON_STDIN,
     GUARD_REFUSED,
     INIT_CANCELLED,
@@ -519,15 +518,16 @@ def _parsed(document: Document) -> dict[str, Any]:
         fail(SOURCE_REFUSED, detail=str(error))
 
 
-def _report_applied(result: ApplyResult, origin: str, *, state: CliState, base_url: str) -> None:
-    """Say what one apply did the moment it lands, tokens it minted included.
+def _report_applied(result: ApplyResult, origin: str, *, state: CliState, base_url: str) -> bool:
+    """Say what one apply did the moment it lands, tokens it minted included, and whether it was accepted.
 
     A project apply that stops at a later document has already written each record before it,
     so what was applied, and every token shown once, is never lost to the stop.
     """
+    accepted = result.plan.action is not PlanAction.INVALID
     if state.json_output:
         emit_records("apply", [result])
-        if result.plan.action is PlanAction.INVALID:
+        if not accepted:
             emit_fact(
                 "validation",
                 level="error",
@@ -536,11 +536,12 @@ def _report_applied(result: ApplyResult, origin: str, *, state: CliState, base_u
                 document=origin,
                 problems=[issue.issue().model_dump(mode="json") for issue in result.plan.issues],
             )
-        return
+        return accepted
     _print_plan(result, origin)
     if result.reactivated:
         console.print(f"{styled('activated'):<10} {escape(result.plan.code)}  [dim](a prune had deactivated it)[/]")
     _print_source_tokens(result, base_url=base_url)
+    return accepted
 
 
 #: Why a project apply with ``--prune`` stopped before reconciling.
@@ -1550,15 +1551,7 @@ def run_command(
             except (SourceError, DocumentError) as error:
                 fail(SOURCE_REFUSED, detail=str(error))
             result = _apply_one(dg, document, code=as_code, dry_run=False)
-            if not _report_run_apply(result, document.label, state=state, base_url=dg.url):
-                if state.json_output:
-                    emit_problem(
-                        DOCUMENT_INVALID,
-                        status=422,
-                        title="Unprocessable Content",
-                        problems=[issue.issue() for issue in result.plan.issues],
-                        code=result.plan.code,
-                    )
+            if not _report_applied(result, document.label, state=state, base_url=dg.url):
                 raise typer.Exit(code=1)
             code = result.plan.code
         else:
@@ -1596,16 +1589,6 @@ def parse_deadline(value: str | None) -> timedelta | None:
     if not isinstance(bound, timedelta) or bound <= timedelta(0):
         fail(NOT_A_DEADLINE, value=repr(value))
     return bound
-
-
-def _report_run_apply(result: ApplyResult, origin: str, *, state: CliState, base_url: str) -> bool:
-    """Say what the apply before a run did, tokens it minted included, and whether it was accepted."""
-    if state.json_output:
-        emit_records("apply", [result])
-        return result.plan.action is not PlanAction.INVALID
-    accepted = _print_plan(result, origin)
-    _print_source_tokens(result, base_url=base_url)
-    return accepted
 
 
 def _report_skipped(accepted: RunAccepted, *, state: CliState) -> None:
@@ -2636,28 +2619,53 @@ def runs_logs(
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Stream new entries as they land.")] = False,
     step: Annotated[str | None, typer.Option("--step", help="Only entries from this step.")] = None,
 ) -> None:
-    """Read a run's log entries, or follow them live."""
+    """Read a run's log entries, or follow them live, each with the fan-out element that wrote it."""
     state = state_of(ctx)
     with client_for(state) as dg:
         entries = list(
             paged(lambda after, size: dg.call(dg.runs.logs(run_id, after=after, limit=size, step=step)), None)
         )
+        labels = _AttemptLabels(dg, run_id, step)
         for entry in entries:
-            _relay_log(entry, state)
+            _relay_log(entry, labels.of(entry), state)
         if not follow:
             return
         cursor = entries[-1].id if entries else 0
         for entry in dg.iterate(dg.runs.follow_logs(run_id, after=cursor, step=step)):
-            _relay_log(entry, state)
+            _relay_log(entry, labels.of(entry), state)
 
 
-def _relay_log(entry: LogEntryOut, state: CliState) -> None:
-    """Write one followed log entry."""
+class _AttemptLabels:
+    """The fan-out element each of a run's attempts was created for, read again for an attempt not yet seen."""
+
+    def __init__(self, dg: Session, run_id: UUID, step: str | None) -> None:
+        """Hold what to read; nothing is read until an entry names an attempt."""
+        self.dg = dg
+        self.run_id = run_id
+        self.step = step
+        self.known: set[UUID] = set()
+        self.labels: dict[UUID, str] = {}
+
+    def of(self, entry: LogEntryOut) -> str | None:
+        """Name the element whose attempt wrote an entry, or nothing for an entry outside a fan-out."""
+        attempt = entry.step_attempt_id
+        if attempt is None:
+            return None
+        if attempt not in self.known:
+            attempts = run_attempts(self.dg, self.run_id, step=self.step)
+            self.known = {one.id for one in attempts} | {attempt}
+            self.labels = item_labels(run_items(self.dg, self.run_id), attempts)
+        return self.labels.get(attempt)
+
+
+def _relay_log(entry: LogEntryOut, item: str | None, state: CliState) -> None:
+    """Write one log entry, with the fan-out element that wrote it."""
     sink(state).event(
         "log",
         at=entry.created_at,
         level=entry.level.value,
         step=entry.step_name,
+        item=item,
         message=entry.message,
         fields=dict(entry.fields or {}),
     )

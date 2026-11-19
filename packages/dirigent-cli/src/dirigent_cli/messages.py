@@ -197,8 +197,6 @@ PRIORITY_IS_NOT_LOCAL = CLI.define(
     "--priority orders a run against the others queued, and a --local run has none",
 )
 
-DOCUMENT_INVALID = CLI.define("document_invalid", "{code} does not validate")
-
 RUN_SKIPPED = CLI.define("run_skipped", "{detail}")
 
 CONCURRENCY_REFUSED = CLI.define("concurrency_refused", "the concurrency policy refused this run")
