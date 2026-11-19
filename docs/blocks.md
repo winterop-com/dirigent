@@ -939,7 +939,7 @@ Contributed by `block-base`. Not idempotent. Polls every 1m unless the step says
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `after` | `string (time)` |  | `"00:00:00"` | The local time the window opens. |
+| `after` | `string (time)` |  | `"00:00:00"` | The local time the window opens. On a day a clock change skips it, the window opens at the change; on a day a clock change repeats it, the window opens at each reading of it. |
 | `before` | `string (time)` |  | `"23:59:59"` | The local time it closes; earlier than `after` means the window crosses midnight. |
 | `timezone` | `string` |  | `"UTC"` | The IANA zone the window is read in. A window without one is a window in someone's head. |
 | `days` | `"mon" or "tue" or "wed" or "thu" or "fri" or "sat" or "sun"[]` |  |  | The days the window opens on; empty means every day. |
