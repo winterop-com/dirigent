@@ -662,6 +662,31 @@ async def test_the_migrations_run_on_postgresql(pg_settings: Settings) -> None:
     assert await migrations.current_revision_async(pg_settings) is None
 
 
+async def test_a_sources_counters_are_64_bit_on_postgresql(pg_settings: Settings) -> None:
+    from dirigent_core import migrations
+    from dirigent_core.models import Source
+
+    engine = create_engine(pg_settings)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.drop_all)
+    await migrations.upgrade_async(settings=pg_settings)
+    try:
+        async with engine.connect() as connection:
+            found = await connection.execute(
+                sa.text(
+                    "SELECT column_name, data_type FROM information_schema.columns "
+                    "WHERE table_name = 'sources' AND column_name IN ('accepted', 'refused', 'failed')"
+                )
+            )
+            migrated = {str(name): str(kind) for name, kind in found}
+    finally:
+        await engine.dispose()
+        await migrations.downgrade_async("base", settings=pg_settings)
+    assert migrated == {"accepted": "bigint", "refused": "bigint", "failed": "bigint"}
+    for name in migrated:
+        assert isinstance(Source.__table__.c[name].type, sa.BigInteger), f"the model's sources.{name} is not 64-bit"
+
+
 # -- the scheduler, which is the other thing only a real PostgreSQL can prove ---------
 #
 # Leadership is a session-scoped advisory lock, and the tick's claim is FOR UPDATE SKIP
