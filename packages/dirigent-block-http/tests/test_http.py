@@ -623,9 +623,10 @@ def test_a_config_naming_neither_a_connection_nor_a_url_is_refused() -> None:
 
 async def test_a_call_without_an_override_inherits_the_connections_timeout(ctx: FakeContext) -> None:
     """An unset override must not become "no timeout": an unanswered call would hold a worker."""
+    ctx.connections["api"] = HttpConnectionConfig(base_url="http://service.test", timeout=timedelta(seconds=7))
     ctx.handler = handler = Responder(json_response(200, {}))
     await HttpRequestOperator().execute(HttpRequestConfig(connection="api", path="/x"), ctx.as_context())
-    assert handler.requests[0].extensions["timeout"] == {"connect": 5.0, "read": 5.0, "write": 5.0, "pool": 5.0}
+    assert handler.requests[0].extensions["timeout"] == {"connect": 7.0, "read": 7.0, "write": 7.0, "pool": 7.0}
 
 
 async def test_a_configured_timeout_overrides_the_connections(ctx: FakeContext) -> None:
@@ -662,9 +663,10 @@ async def test_the_sensor_observes_a_ready_service(ctx: FakeContext) -> None:
 
 
 async def test_a_poke_without_an_override_inherits_the_connections_timeout(ctx: FakeContext) -> None:
+    ctx.connections["api"] = HttpConnectionConfig(base_url="http://service.test", timeout=timedelta(seconds=7))
     ctx.handler = handler = Responder(httpx2.Response(200, text="ready"))
     await HttpReadySensor().poke(HttpReadyConfig(connection="api", path="/health"), ctx.as_context())
-    assert handler.requests[0].extensions["timeout"] == {"connect": 5.0, "read": 5.0, "write": 5.0, "pool": 5.0}
+    assert handler.requests[0].extensions["timeout"] == {"connect": 7.0, "read": 7.0, "write": 7.0, "pool": 7.0}
 
     ctx.handler = handler = Responder(httpx2.Response(200, text="ready"))
     await HttpReadySensor().poke(

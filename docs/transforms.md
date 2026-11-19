@@ -667,7 +667,9 @@ class LuaTransformer(RunnerEngine, Transformer):
 
 dirigent starts one runner per command and hands it to one step at a time: a step holds it
 for its whole run and gives it back after, so two steps never meet on one pipe, and a runner
-that was killed is never handed out again. `outputs` is what the engine calls per value;
+that was killed is never handed out again. A runner no step has taken for five minutes is
+stopped, so a burst of concurrent steps leaves no crowd of idle processes behind; the next
+step starts a fresh one. `outputs` is what the engine calls per value;
 compiling the program and releasing it are the frame's.
 
 `ProgramRunner`, in `dirigent-plugin`, is the parent's half of the exchange: one process, its
