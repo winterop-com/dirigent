@@ -75,11 +75,15 @@ class Holder:
         for source_id, task in list(self.holding.items()):
             if task.done():
                 del self.holding[source_id]
+                if not task.cancelled() and (error := task.exception()) is not None:
+                    _logger.error("held source stopped unrecorded", source=str(source_id), error=str(error))
         room = self.services.settings.source_held_max - len(self.holding)
         if room <= 0 or self._stopping.is_set():
             return []
         async with session_scope(self.sessions) as session:
-            taken = await take_free(session, self.services, owner=self.owner, now=now or utcnow(), limit=room)
+            taken = await take_free(
+                session, self.services, owner=self.owner, now=now or utcnow(), limit=room, holding=set(self.holding)
+            )
         for one in taken:
             self.holding[one.source_id] = asyncio.create_task(self._hold(one))
         return [one.source_id for one in taken]
@@ -108,9 +112,19 @@ class SourceUnreadable(Exception):
 
 
 async def take_free(
-    session: AsyncSession, services: EngineServices, *, owner: str, now: datetime, limit: int
+    session: AsyncSession,
+    services: EngineServices,
+    *,
+    owner: str,
+    now: datetime,
+    limit: int,
+    holding: set[UUID] | None = None,
 ) -> list[Taken]:
-    """Write this worker's lease on up to ``limit`` held sources that nobody holds and that are due."""
+    """Write this worker's lease on up to ``limit`` held sources that nobody holds and that are due.
+
+    ``holding`` names the sources this worker still has a consumer open on, whose lease may have
+    run out without the consumer stopping; none of them is taken a second time.
+    """
     names = [name for name, kind in services.sources.items() if isinstance(kind, HeldSource)]
     if not names:
         return []
@@ -128,6 +142,8 @@ async def take_free(
         .order_by(Source.next_poll_at)
         .limit(limit)
     )
+    if holding:
+        statement = statement.where(Source.id.not_in(holding))
     if session.get_bind().dialect.name == "postgresql":
         statement = statement.with_for_update(of=Source, skip_locked=True)
     taken: list[Taken] = []

@@ -339,6 +339,30 @@ async def test_max_in_flight_bounds_how_many_inputs_one_poll_hands_over(
     assert await polling.tick(sessions, services, owner=WORKER, now=later) == [], "both runs are unsettled"
 
 
+async def test_a_backlog_larger_than_one_poll_is_looked_at_again_at_once_until_it_is_drained(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    inbox = inbox_of(tmp_path)
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    for minute, name in enumerate(["a.csv", "b.csv", "c.csv"]):
+        put(inbox, name, base + timedelta(minutes=minute))
+    await apply(sessions, services, landing(inbox))
+    two = services.model_copy(update={"settings": services.settings.model_copy(update={"source_poll_batch": 2})})
+
+    [first] = await polling.tick(sessions, two, owner=WORKER)
+    assert len(first.runs) == 2
+    due = (await the_source(sessions)).next_poll_at
+    assert due is not None and due.replace(tzinfo=UTC) <= datetime.now(UTC), "the third is looked for at once"
+
+    [second] = await polling.tick(sessions, two, owner=WORKER)
+    assert len(second.runs) == 1
+    due = (await the_source(sessions)).next_poll_at
+    assert due is not None and due.replace(tzinfo=UTC) - datetime.now(UTC) > timedelta(seconds=50), (
+        "drained, it waits its cadence"
+    )
+    assert await entered(sessions) == [f"file://{inbox}/{name}" for name in ["a.csv", "b.csv", "c.csv"]]
+
+
 async def test_moving_the_location_resets_the_cursor(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
 ) -> None:
