@@ -16,11 +16,13 @@ import pytest
 import sqlalchemy as sa
 import yaml
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, SecretStr
 from sqlalchemy import event
 from sqlalchemy.exc import DBAPIError
@@ -1334,7 +1336,7 @@ def test_a_pipeline_listing_carries_its_newest_run_and_the_step_that_run_failed_
             run_id=newer,
             step_name="farewell",
             block_id="shell.run",
-            attempt=1,
+            attempt=2,
             status=AttemptStatus.FAILED,
         ),
         sa.update(Run).where(Run.id == newer).values(status=RunStatus.FAILED, finished_at=datetime.now(UTC)),
@@ -3737,6 +3739,27 @@ def test_the_framework_opens_no_spans_of_its_own(
     request_span = next(span for span in spans.get_finished_spans() if span.name.endswith("/$run"))
     assert run_span.parent is not None and request_span.context is not None
     assert run_span.parent.span_id == request_span.context.span_id
+
+
+def test_an_unhandled_exception_reaches_the_request_span_by_its_class_alone(
+    settings: Settings, admin_token: str, spans: InMemorySpanExporter
+) -> None:
+    """An exception's text can carry what the request bound, such as a database error's parameters."""
+    from dirigent_server import create_app
+
+    async def boom() -> None:
+        raise RuntimeError("[parameters: ('hunter2',)]")
+
+    app = create_app(settings)
+    app.router.routes.insert(0, APIRoute("/boom", boom))
+    with TestClient(app, raise_server_exceptions=False, headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        assert client.get("/boom").status_code == 500
+
+    request_span = next(span for span in spans.get_finished_spans() if span.name.endswith("/boom"))
+    recorded = [str(request_span.status.description), *(str(event.attributes) for event in request_span.events)]
+    assert request_span.status.status_code is StatusCode.ERROR
+    assert not [said for said in recorded if "hunter2" in said or "stacktrace" in said]
+    assert "RuntimeError" in str(request_span.status.description)
 
 
 # -- the pagination envelope ------------------------------------------------------
