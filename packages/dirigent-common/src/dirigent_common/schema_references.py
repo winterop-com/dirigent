@@ -125,8 +125,7 @@ def reference_targets(schema: Any, lookup: Callable[[str], Any | None]) -> tuple
 
 
 #: The 2020-12 keywords whose value is one subschema, a list of them, or a map of them, with
-#: the older drafts' ``definitions`` and ``dependencies``. A ``dependencies`` entry that is a
-#: list of property names holds no subschema and is passed over.
+#: the older drafts' ``definitions``.
 _ONE_SUBSCHEMA: Final = frozenset(
     {
         "additionalProperties",
@@ -143,9 +142,7 @@ _ONE_SUBSCHEMA: Final = frozenset(
     }
 )
 _LIST_OF_SUBSCHEMAS: Final = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
-_MAP_OF_SUBSCHEMAS: Final = frozenset(
-    {"$defs", "definitions", "dependencies", "dependentSchemas", "patternProperties", "properties"}
-)
+_MAP_OF_SUBSCHEMAS: Final = frozenset({"$defs", "definitions", "dependentSchemas", "patternProperties", "properties"})
 
 
 def unresolved_references(schema: Any, registry: Registry[Any] = LOCAL_REFERENCES) -> list[tuple[str, str]]:

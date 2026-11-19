@@ -61,14 +61,7 @@ def test_unresolved_references_are_named_where_they_sit_and_resolve_as_a_validat
         *[(keyword, "list") for keyword in ("allOf", "anyOf", "oneOf", "prefixItems")],
         *[
             (keyword, "map")
-            for keyword in (
-                "$defs",
-                "definitions",
-                "dependencies",
-                "dependentSchemas",
-                "patternProperties",
-                "properties",
-            )
+            for keyword in ("$defs", "definitions", "dependentSchemas", "patternProperties", "properties")
         ],
     ],
 )
@@ -79,8 +72,9 @@ def test_every_applicator_is_walked_for_references(keyword: str, shape: str) -> 
     assert unresolved_references({keyword: value}) == [(where, "#/$defs/nope")]
 
 
-def test_a_dependencies_entry_naming_properties_holds_no_reference() -> None:
-    assert unresolved_references({"dependencies": {"a": ["b"]}}) == []
+def test_a_dangling_reference_under_dependencies_is_not_reported() -> None:
+    """The 2020-12 validator never evaluates ``dependencies``, so a run never reaches its references."""
+    assert unresolved_references({"dependencies": {"a": {"$ref": "#/$defs/nope"}}}) == []
 
 
 @pytest.mark.parametrize(
