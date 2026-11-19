@@ -8,9 +8,9 @@ from typing import Any
 
 import httpx2
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 
-from dirigent_common import loggable
+from dirigent_common import HttpConnectionConfig, loggable
 from dirigent_plugin import BlockFailure, ErrorClass, RunState
 from dirigent_testing import FakeContext, FakeRuns, FakeStorage, RecordingLogger
 from dirigent_testing.doubles import StorageRefused
@@ -246,14 +246,29 @@ def test_the_context_resolves_a_connection_the_test_installed(block_ctx: FakeCon
     assert block_ctx.connection("acme", Credential).token == "secret"
 
 
-async def test_the_context_builds_a_client_on_the_handler_the_test_installed(block_ctx: FakeContext) -> None:
-    block_ctx.connections["service"] = _Installed()
-    block_ctx.handler = lambda request: httpx2.Response(200, json={"path": request.url.path})
+async def test_the_context_builds_the_engines_client_on_the_handler_the_test_installed(block_ctx: FakeContext) -> None:
+    """The connection's base URL and credential reach the handler as they would reach the service."""
+    block_ctx.connections["service"] = HttpConnectionConfig(
+        base_url="https://api.example.test/v1", bearer_token=SecretStr("dummy")
+    )
+    seen: list[httpx2.Request] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200)
+
+    block_ctx.handler = handler
 
     async with block_ctx.http("service") as client:
-        response = await client.get("/health")
+        await client.get("/health")
+        await client.get("https://elsewhere.example.test/health")
 
-    assert response.json() == {"path": "/health"}
+    assert [str(request.url) for request in seen] == [
+        "https://api.example.test/v1/health",
+        "https://elsewhere.example.test/health",
+    ]
+    assert seen[0].headers.get("Authorization") == "Bearer dummy"
+    assert "Authorization" not in seen[1].headers, "the credential stays on the connection's origin"
 
 
 def test_asking_for_a_client_without_a_handler_says_so(block_ctx: FakeContext) -> None:

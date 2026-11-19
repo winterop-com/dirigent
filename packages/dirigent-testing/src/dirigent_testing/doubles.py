@@ -13,7 +13,7 @@ import httpx2
 from jsonschema import FormatChecker
 from pydantic import BaseModel, JsonValue
 
-from dirigent_common import Message, format_checker_with, loggable
+from dirigent_common import Message, build_client, format_checker_with, loggable
 from dirigent_plugin import (
     BlockFailure,
     ByteSink,
@@ -420,8 +420,13 @@ class FakeContext:
         return format_checker_with(self.formats)
 
     def http(self, ref: str) -> httpx2.AsyncClient:
-        """Build a client whose transport is the test's own handler, for a connection the test installed."""
-        self._installed(ref)
+        """Build the engine's client for a connection the test installed, on the test's own handler.
+
+        The client is the one the engine builds from the connection: its ``base_url``, its
+        credential on that origin alone, its timeout and its redirect rule. Only the network is
+        the handler.
+        """
+        installed = self._installed(ref)
         if self.handler is None:
             raise AssertionError("this test asked for an HTTP client but installed no handler")
-        return httpx2.AsyncClient(base_url="http://service.test", transport=httpx2.MockTransport(self.handler))
+        return build_client(installed, transport=httpx2.MockTransport(self.handler))
