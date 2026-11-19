@@ -210,7 +210,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `cleanup` | `boolean` |  | `true` | On a bring-up that does not succeed, best-effort `down` the same project before leaving. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. Takes a connection of kind `docker`. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket the status read speaks to, when neither the default nor `DOCKER_HOST` is right. |
-| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon for the status read may take. More than `0s`. |
+| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long the daemon may keep one call of the status read waiting at each phase: connecting, sending the request, and between two reads of its answer. It bounds a silent daemon, not the whole read. More than `0s`. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The overall deadline on the CLI invocation, after which it is killed as transient. |
 
 **Output**

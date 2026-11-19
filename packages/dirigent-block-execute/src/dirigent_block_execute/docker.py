@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from types import TracebackType
-from typing import Annotated, BinaryIO, ClassVar, Literal, NamedTuple, cast
+from typing import Annotated, BinaryIO, ClassVar, Literal, cast
 
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr, model_validator
@@ -1240,7 +1240,7 @@ class DockerDaemon:
         return response.status_code < BAD_REQUEST or response.status_code == NOT_FOUND
 
 
-class DaemonEndpoint(NamedTuple):
+class DaemonEndpoint(BaseModel):
     """Where the daemon is and how to speak to it, resolved from the config and the environment.
 
     A ``uds`` names a local unix socket the client speaks plain HTTP over; otherwise ``base_url``
@@ -1248,6 +1248,8 @@ class DaemonEndpoint(NamedTuple):
     carrying the TLS material when the environment asks for it. ``socket`` is the unix path a
     connect error names, and is ``None`` for a tcp daemon.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     base_url: str
     uds: str | None
@@ -1271,7 +1273,9 @@ def resolve_endpoint(explicit_socket: str | None, environ: Mapping[str, str] | N
     """
     source = os.environ if environ is None else environ
     if explicit_socket:
-        return DaemonEndpoint(DAEMON_BASE_URL, explicit_socket, True, None, explicit_socket)
+        return DaemonEndpoint(
+            base_url=DAEMON_BASE_URL, uds=explicit_socket, verify=True, cert=None, socket=explicit_socket
+        )
     host = source.get("DOCKER_HOST", "")
     if host.startswith("tcp://"):
         secure = source.get("DOCKER_TLS_VERIFY", "") not in ("", "0")
@@ -1283,10 +1287,10 @@ def resolve_endpoint(explicit_socket: str | None, environ: Mapping[str, str] | N
         if secure and cert_path:
             verify = str(Path(cert_path) / "ca.pem")
             cert = (str(Path(cert_path) / "cert.pem"), str(Path(cert_path) / "key.pem"))
-        return DaemonEndpoint(base_url, None, verify, cert, None)
+        return DaemonEndpoint(base_url=base_url, uds=None, verify=verify, cert=cert, socket=None)
     if host.startswith("unix://"):
         socket = host.removeprefix("unix://") or DEFAULT_SOCKET_PATH
-        return DaemonEndpoint(DAEMON_BASE_URL, socket, True, None, socket)
+        return DaemonEndpoint(base_url=DAEMON_BASE_URL, uds=socket, verify=True, cert=None, socket=socket)
     if host:
         raise BlockFailure(
             NOT_A_DAEMON_SCHEME,
@@ -1294,7 +1298,9 @@ def resolve_endpoint(explicit_socket: str | None, environ: Mapping[str, str] | N
             schemes=" or ".join(DAEMON_SCHEMES),
             host=repr(host),
         )
-    return DaemonEndpoint(DAEMON_BASE_URL, DEFAULT_SOCKET_PATH, True, None, DEFAULT_SOCKET_PATH)
+    return DaemonEndpoint(
+        base_url=DAEMON_BASE_URL, uds=DEFAULT_SOCKET_PATH, verify=True, cert=None, socket=DEFAULT_SOCKET_PATH
+    )
 
 
 def socket_path(config: DockerRunConfig) -> str:

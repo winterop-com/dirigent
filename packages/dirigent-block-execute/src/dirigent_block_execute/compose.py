@@ -195,7 +195,9 @@ class DockerComposeUpConfig(BlockModel):
     """The daemon socket the status read speaks to, when neither the default nor ``DOCKER_HOST`` is right."""
 
     api_timeout: Duration = Field(default=timedelta(seconds=60), gt=timedelta(0))
-    """How long one call to the daemon for the status read may take."""
+    """How long the daemon may keep one call of the status read waiting at each phase:
+    connecting, sending the request, and between two reads of its answer. It bounds a silent
+    daemon, not the whole read."""
 
     timeout: Duration = timedelta(minutes=10)
     """The overall deadline on the CLI invocation, after which it is killed as transient."""
