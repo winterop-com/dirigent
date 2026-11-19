@@ -4,7 +4,8 @@ A worker lists the location on the source's cadence and hands over every object 
 handed over before, oldest first. The cursor maps each object handed over that is still listed
 to its modification time, so an object is new whatever its timestamp, and the cursor holds as
 many entries as the location holds objects. An object is known by its URI alone unless the
-source asks for one whose modification time changed to be handed over again.
+source asks for one whose modification time changed to be handed over again. A look that
+finds more than one poll hands over is followed by the next look at once, until it is drained.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -95,7 +96,8 @@ class StorageSource(PolledSource[StorageConfig, StorageInput]):
         listed = [found async for found in ctx.storage.list(config.uri)]
         seen = _seen_of(cursor)
         known = [one for one in listed if _known(one, seen, rerun_changed=config.rerun_changed)]
-        newer = sorted((one for one in listed if one not in known), key=_key)[:limit]
+        waiting = sorted((one for one in listed if one not in known), key=_key)
+        newer = waiting[:limit]
         kept = {one.uri: seen[one.uri] for one in known}
         if not newer:
             return Polled(inputs=[], cursor={"seen": kept} if kept else None)
@@ -111,7 +113,11 @@ class StorageSource(PolledSource[StorageConfig, StorageInput]):
             for one in newer
         ]
         ctx.log.info("objects found", location=config.uri, found=len(inputs))
-        return Polled(inputs=inputs, cursor={"seen": kept | {one.uri: _stamp(one) for one in newer}})
+        return Polled(
+            inputs=inputs,
+            cursor={"seen": kept | {one.uri: _stamp(one) for one in newer}},
+            next_poll_in=timedelta(0) if len(waiting) > len(newer) else None,
+        )
 
 
 def _key(found: StatResult) -> tuple[datetime, str]:

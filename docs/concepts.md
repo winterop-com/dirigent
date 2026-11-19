@@ -262,7 +262,9 @@ a time and polls them side by side, and a poll that is still going when the sour
 carries on where the last stopped; moving the `uri` starts the cursor over, and a poll that was
 in flight when it moved makes no run. A polled source is
 `starting` until its first poll succeeds, and `failing` while its polls fail, each failure
-doubling the wait before the next. `max_in_flight` bounds how many of its runs are unsettled
+doubling the wait before the next. A poll hands over at most `source_poll_batch` objects, and
+one that leaves more waiting is followed by the next at once rather than after the cadence.
+`max_in_flight` bounds how many of its runs are unsettled
 before the next poll waits. A poll is all or nothing: when a run cannot be made of one of the
 inputs it found, none of them is kept, the cursor stays, and the poll is retried after the
 backoff, so an input is never skipped. For the same reason a pipeline with a polled source
