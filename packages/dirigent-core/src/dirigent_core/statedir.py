@@ -173,8 +173,11 @@ def _refuse_tracked(directory: Path) -> None:
         raise StateRefused(STATE_UNCHECKED, where=str(directory), detail=str(error)) from error
     prefix = _canonical(absolute.relative_to(top).as_posix())
     for path in tracked:
-        name = _canonical(os.fsdecode(path))
-        if prefix == "." or name == prefix or name.startswith(f"{prefix}/"):
+        # A sparse index holds a directory outside its cone as one entry, its path and a "/".
+        spelled = _canonical(os.fsdecode(path))
+        name = spelled.rstrip("/")
+        folded = spelled != name and prefix.startswith(f"{name}/")
+        if prefix == "." or folded or name == prefix or name.startswith(f"{prefix}/"):
             raise StateRefused(STATE_TRACKED, where=str(directory), repository=str(top))
 
 

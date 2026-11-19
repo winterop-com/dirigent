@@ -340,6 +340,16 @@ class StepAttempt(Entity):
     __tablename__ = "step_attempts"
     __table_args__ = (
         sa.UniqueConstraint("run_id", "step_name", "run_item_id", "attempt"),
+        # A null run_item_id is distinct from every other in a unique constraint.
+        sa.Index(
+            "uq_step_attempts_run_id_step_name_attempt",
+            "run_id",
+            "step_name",
+            "attempt",
+            unique=True,
+            postgresql_where=sa.text("run_item_id IS NULL"),
+            sqlite_where=sa.text("run_item_id IS NULL"),
+        ),
         sa.UniqueConstraint("run_id", "idempotency_key"),
         sa.Index("ix_step_attempts_status_available_at", "status", "available_at"),
         sa.Index("ix_step_attempts_status_next_poll_at", "status", "next_poll_at"),
