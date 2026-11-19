@@ -556,13 +556,13 @@ class Source(Entity):
     """Which instance key sealed the signing secret."""
 
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    accepted: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    accepted: Mapped[int] = mapped_column(sa.BigInteger, nullable=False, default=0, server_default=sa.text("0"))
     """How many inputs became runs that did not answer their caller with a failure."""
 
-    refused: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    refused: Mapped[int] = mapped_column(sa.BigInteger, nullable=False, default=0, server_default=sa.text("0"))
     """How many calls were refused before any run existed, an unauthenticated one included."""
 
-    failed: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    failed: Mapped[int] = mapped_column(sa.BigInteger, nullable=False, default=0, server_default=sa.text("0"))
     """How many inputs became runs whose failure was what their held caller was answered with."""
 
     last_input_at: Mapped[datetime | None] = mapped_column(Timestamp)

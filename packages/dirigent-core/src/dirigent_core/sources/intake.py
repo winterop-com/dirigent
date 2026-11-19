@@ -335,6 +335,17 @@ class Intake:
             stopped = _not_taking(row, pipeline)
             if stopped is not None:
                 return await journal.refuse(stopped)
+            kind = received(services.sources, row)
+            if kind is None:
+                return await unadmitted(
+                    Refusal.of(SOURCE_KIND_MISSING, status=503, code=repr(row.code), kind=repr(row.kind))
+                )
+            source, config = kind
+            declared = source.max_body(config)
+            most = min(declared, cap) if declared is not None else cap
+            refused = await _unauthenticated(session, services, row, source.auth(config), call.headers, body)
+            if refused is not None:
+                return await unadmitted(refused)
         journal.body_bytes = len(body)
         if len(body) > most:
             return await journal.refuse(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
@@ -591,6 +602,22 @@ def _counted(refusal: Refusal) -> Refusal:
     """Count a refusal no journal row records, and hand it back to be answered."""
     telemetry.record_input(InputOutcome.REFUSED.value, refusal.status)
     return refusal
+
+
+async def _unauthenticated(
+    session: AsyncSession,
+    services: EngineServices,
+    row: Source,
+    auth: SourceAuth,
+    headers: Mapping[str, str],
+    body: bytes,
+) -> Refusal | None:
+    """Refuse a call whose body has arrived and that no longer presents what the source takes now."""
+    if auth.kind == "token" and not _presents(row, headers):
+        return Refusal.of(TOKEN_REFUSED, status=401, headers={"WWW-Authenticate": 'Bearer realm="dirigent"'})
+    if auth.kind == "hmac":
+        return await _unsigned(session, services, row, auth, headers, body, utcnow())
+    return None
 
 
 def _presents(row: Source, headers: Mapping[str, str]) -> bool:
