@@ -627,7 +627,30 @@ export function fromYaml(text: string): { ok: true; document: JsonMap } | { ok: 
     if (typeof parsed !== 'object' || Array.isArray(parsed)) {
         return { ok: false, message: LABELS.editor.source.not_a_mapping }
     }
+    const unsendable = nonFiniteIn(parsed, '')
+    if (unsendable !== null) return { ok: false, message: LABELS.editor.source.not_finite(unsendable) }
     return { ok: true, document: parsed as JsonMap }
+}
+
+/**
+ * The path of the first `.inf`, `-.inf` or `.nan` in a value, or null when there is none.
+ *
+ * JSON has no word for any of them, and the wire would carry each as `null`.
+ */
+function nonFiniteIn(value: unknown, path: string): string | null {
+    if (typeof value === 'number') return Number.isFinite(value) ? null : path
+    if (value === null || typeof value !== 'object') return null
+    const entries = Array.isArray(value)
+        ? value.map((item, index): [string, unknown] => [`${path}[${index}]`, item])
+        : Object.entries(value).map(([key, item]): [string, unknown] => [
+              path === '' ? key : `${path}.${key}`,
+              item,
+          ])
+    for (const [at, item] of entries) {
+        const found = nonFiniteIn(item, at)
+        if (found !== null) return found
+    }
+    return null
 }
 
 /** A copy nothing else holds a reference into, so an edit cannot reach the applied document. */

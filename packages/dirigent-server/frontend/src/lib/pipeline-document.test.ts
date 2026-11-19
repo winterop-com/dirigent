@@ -375,6 +375,21 @@ describe('the document as YAML', () => {
         })
         expect(fromYaml('')).toEqual({ ok: false, message: 'the document is empty' })
     })
+
+    test('refuses a number JSON cannot carry, by the key that holds it, rather than sending it as null', () => {
+        expect(fromYaml('code: big\nsteps: {}\nconfig:\n  limit: .inf')).toEqual({
+            ok: false,
+            message: 'config.limit: an infinity or NaN cannot be sent; write a finite number or a string',
+        })
+        const deep = fromYaml(
+            'code: deep\nsteps:\n  pick:\n    config:\n      bounds: [0, -.inf]\n      ratio: .nan',
+        )
+        expect(deep.ok === false && deep.message.startsWith('steps.pick.config.bounds[1]:')).toBe(true)
+        expect(fromYaml("code: fine\nsteps: {}\nconfig:\n  limit: '.inf'")).toEqual({
+            ok: true,
+            document: { code: 'fine', steps: {}, config: { limit: '.inf' } },
+        })
+    })
 })
 
 describe('the store the whole screen reads', () => {
@@ -411,6 +426,16 @@ describe('the store the whole screen reads', () => {
         expect(state.parseError).not.toBeNull()
         expect(state.draft).toBe('steps:\n  parse: [')
         expect(stepNames(state.local)).toEqual(['parse', 'report'])
+    })
+
+    test('keeps an infinity out of the document an apply would send', () => {
+        loadDocument('convert-one', document())
+        const typed = toYaml(document()).replace('steps:', 'config:\n  limit: .inf\nsteps:')
+        writeSource(typed)
+        const state = documentStore.get()
+        expect(state.parseError).toMatch(/^config\.limit:/)
+        expect(state.draft).toBe(typed)
+        expect(state.local).toEqual(document())
     })
 
     test('shows text that was typed as it was typed, comments and all', () => {
