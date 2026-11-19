@@ -10,6 +10,7 @@ import pytest
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from dirigent_client.enums import ProvenanceSource, SourceState
 from dirigent_common import JsonMap
@@ -23,7 +24,7 @@ from dirigent_core.messages import SOURCE_CONFIG_UNREADABLE
 from dirigent_core.models import Pipeline, Run, Source
 from dirigent_core.pipelines import apply_document, set_active
 from dirigent_core.plugins import PluginHost
-from dirigent_core.sources import polling
+from dirigent_core.sources import holding, polling
 from dirigent_core.sources.holding import Holder
 from dirigent_core.sources.rows import set_paused, state_of
 from dirigent_plugin import Contribution
@@ -543,6 +544,50 @@ async def test_a_source_whose_stored_fields_its_kind_no_longer_reads_fails_by_na
         assert row.lease_owner is None
         assert row.next_poll_at is not None and row.next_poll_at > datetime.now(UTC), "it is not taken up again at once"
         assert INBOX.opened == 0
+    finally:
+        await holder.stop()
+
+
+async def test_a_source_whose_lease_ran_out_under_a_live_consumer_is_not_opened_a_second_time(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, mailroom())
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        assert len(await holder.tick()) == 1
+
+        async def opened() -> bool:
+            return INBOX.opened == 1
+
+        await eventually(opened)
+        async with session_scope(sessions) as session:
+            await session.execute(sa.update(Source).values(lease_expires_at=datetime.now(UTC) - timedelta(seconds=1)))
+        assert await holder.tick() == [], "the consumer still open keeps its source"
+        assert (INBOX.opened, len(holder.holding)) == (1, 1)
+    finally:
+        await holder.stop()
+    assert INBOX.closed == 1
+
+
+async def test_what_a_held_source_raises_past_its_own_record_is_logged(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    INBOX.refuse_open = True
+    await apply(sessions, services, mailroom())
+
+    async def unrecordable(*_: object, **__: object) -> None:
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(holding, "_failed", unrecordable)
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+        [task] = holder.holding.values()
+        await asyncio.wait([task])
+        with capture_logs() as logs:
+            await holder.tick(now=datetime.now(UTC) - timedelta(hours=1))
+        [said] = [entry for entry in logs if entry["event"] == "held source stopped unrecorded"]
+        assert (said["log_level"], said["error"]) == ("error", "the database went away")
     finally:
         await holder.stop()
 
