@@ -1031,6 +1031,8 @@ const refused = {
             'Alert rule {code} is declared in the document of pipeline {pipeline}. Edit its alerts: section and apply it again.',
         on_change_unsettled:
             'Only on change compares a run with the one before it, and {event} is raised for a run that has not settled.',
+        notifier_timed_out:
+            'Notifier {notifier} was still sending after {timeout}, so this delivery was stopped and will be tried again.',
         owned_elsewhere:
             'Alert rule {code} already exists, declared by {owner}. A rule code is unique across the instance.',
         target_has_no_notifier:

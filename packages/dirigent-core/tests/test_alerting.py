@@ -1971,6 +1971,28 @@ async def test_a_notifier_missing_from_this_worker_fails_the_delivery_rather_tha
         assert "is not installed on any worker at hand" in (claimed.error or "")
 
 
+async def test_a_send_that_outlasts_the_notification_timeout_fails_and_goes_back_on_the_queue(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    notification = await enqueue(
+        sessions, event=AlertEvent.RUN_FAILED, notifier="interfering", subject="hung", available_at=NOW
+    )
+    interference.during = lambda: asyncio.sleep(30)
+    patient = services.model_copy(
+        update={"settings": services.settings.model_copy(update={"notification_timeout": timedelta(milliseconds=50)})}
+    )
+    async with session_scope(sessions) as session:
+        claim = await claim_notification(session, owner=OWNER, now=NOW, lease_seconds=LEASE)
+        assert claim is not None
+        claimed, token = claim.notification, claim.lease_token
+        async with asyncio.timeout(10):
+            delivered = await send_notification(session, patient, claimed, owner=OWNER, lease_token=token, now=NOW)
+        assert delivered is False
+        assert claimed.id == notification.id
+        assert claimed.status is NotificationStatus.PENDING
+        assert claimed.error == "AlertError: notifier 'interfering' did not finish sending within 50ms"
+
+
 async def test_a_message_with_no_run_and_no_context_still_delivers(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

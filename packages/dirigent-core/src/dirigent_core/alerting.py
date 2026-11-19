@@ -70,6 +70,7 @@ from dirigent_core.messages import (
     DUPLICATE_RULE,
     NOTIFICATION_IN_FLIGHT,
     NOTIFIER_NOT_ON_WORKER,
+    NOTIFIER_TIMED_OUT,
     ON_CHANGE_UNSETTLED,
     SCOPE_NEEDS_PIPELINE,
     TARGET_HAS_NO_NOTIFIER,
@@ -1398,7 +1399,7 @@ async def send_notification(
         secrets = secrets_of(config)
         await session.commit()
         rendered = await _rendered(services, notification)
-        await notifier.send(_message(notification, rendered.subject, rendered.body), config)
+        await _sent(services, notifier, _message(notification, rendered.subject, rendered.body), config)
     except Exception as error:
         if not await _holds_lease(session, notification, owner, lease_token):
             return False
@@ -1417,6 +1418,19 @@ async def send_notification(
     _timeline(session, notification, LogLevel.INFO, f"alert delivered through {notification.notifier!r}", moment)
     _logger.info("notification delivered", notification_id=str(notification.id), notifier=notification.notifier)
     return True
+
+
+async def _sent(services: EngineServices, notifier: Notifier, message: AlertMessage, config: BaseModel) -> None:
+    """Send one message, failing it once it has taken longer than ``notification_timeout``."""
+    within = services.settings.notification_timeout
+    deadline = asyncio.timeout(within.total_seconds())
+    try:
+        async with deadline:
+            await notifier.send(message, config)
+    except TimeoutError as error:
+        if not deadline.expired():
+            raise
+        raise AlertError(NOTIFIER_TIMED_OUT, notifier=repr(notifier.id), timeout=format_duration(within)) from error
 
 
 async def _holds_lease(session: AsyncSession, notification: Notification, owner: str, lease_token: UUID) -> bool:
