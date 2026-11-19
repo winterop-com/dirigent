@@ -19,9 +19,11 @@ from uuid import UUID
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
-from dirigent_client.enums import NotificationStatus
+from dirigent_client.enums import NotificationStatus, TriggerKind
 from dirigent_core.engine.claim import is_postgres
+from dirigent_core.engine.runs import MAX_CHAIN_WALK
 from dirigent_core.logging import get_logger
 from dirigent_core.models import AuditEntry, LogEntry, Notification, Run, ScheduleFiring, SourceInput
 from dirigent_core.storage import Storage
@@ -53,6 +55,35 @@ FAMILIES: Final[tuple[tuple[str, type[Any], tuple[sa.ColumnElement[bool], ...]],
 #: A run is only ever pruned once it has settled: an unfinished run is either still running
 #: or is the evidence of something that went wrong.
 SETTLED: Final = Run.finished_at.is_not(None)
+
+
+def _chain_holders() -> sa.Select[tuple[UUID]]:
+    """Every run that a run not yet settled descends from through the steps that started each one.
+
+    A run's chain is read from its starters each time a step starts another pipeline, for its
+    depth and for the pipelines already in it, so none of them may go while the chain runs.
+    """
+    starter = aliased(Run)
+    held = (
+        sa.select(Run.triggered_by_id.label("id"), sa.literal(1).label("hop"))
+        .where(~SETTLED, Run.triggered_by_kind == TriggerKind.PIPELINE, Run.triggered_by_id.is_not(None))
+        .cte("chain_holders", recursive=True)
+    )
+    held = held.union_all(
+        sa.select(starter.triggered_by_id, held.c.hop + 1)
+        .join(held, starter.id == held.c.id)
+        .where(
+            starter.triggered_by_kind == TriggerKind.PIPELINE,
+            starter.triggered_by_id.is_not(None),
+            held.c.hop < MAX_CHAIN_WALK,
+        )
+    )
+    return sa.select(held.c.id)
+
+
+def _prunable() -> tuple[sa.ColumnElement[bool], ...]:
+    """What makes a run old enough to go a run that may go: settled, and holding no chain that runs on."""
+    return SETTLED, Run.id.not_in(_chain_holders())
 
 
 class Policy(BaseModel):
@@ -173,7 +204,7 @@ async def counted(session: AsyncSession, policy: Policy, *, now: datetime | None
         if age is not None:
             counts[family] = await _count(session, model, moment - age, *extra)
     if policy.runs is not None:
-        counts["runs"] = await _count(session, Run, moment - policy.runs, SETTLED, column=Run.finished_at)
+        counts["runs"] = await _count(session, Run, moment - policy.runs, *_prunable(), column=Run.finished_at)
     return {family: count for family, count in counts.items() if count}
 
 
@@ -226,7 +257,7 @@ async def _prune_runs(
     Storage goes first: a row deleted before its artifacts are gone is a scratch prefix
     nothing points at any more, and nothing would find it again.
     """
-    doomed = sa.select(Run.id).where(Run.finished_at < threshold, SETTLED).order_by(Run.id).limit(limit)
+    doomed = sa.select(Run.id).where(Run.finished_at < threshold, *_prunable()).order_by(Run.id).limit(limit)
     if is_postgres(session):
         # A manual retry holds the run's row while it reopens it. Skipping a locked row leaves
         # that run to the next sweep rather than clearing artifacts a live run is about to read.
@@ -241,8 +272,8 @@ async def _prune_runs(
         if not keys:
             return 0
     # A retry can reopen a run between its selection and this delete. The delete says again
-    # what made the run prunable, so a reopened run keeps its rows.
-    await session.execute(sa.delete(Run).where(Run.id.in_(keys), SETTLED, Run.finished_at < threshold))
+    # what made the run prunable, so a reopened run, and the chain above it, keep their rows.
+    await session.execute(sa.delete(Run).where(Run.id.in_(keys), *_prunable(), Run.finished_at < threshold))
     survived = list((await session.execute(sa.select(Run.id).where(Run.id.in_(keys)))).scalars())
     if cleared:
         for run_id in survived:

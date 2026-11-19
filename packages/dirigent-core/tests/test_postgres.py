@@ -25,7 +25,7 @@ from dirigent_client.enums import (
     WorkerStatus,
 )
 from dirigent_client.schemas import ApplyResult, PlanAction
-from dirigent_core import alerting, database, migrations, pipelines
+from dirigent_core import alerting, database, migrations, pipelines, retention
 from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew_lease
 from dirigent_core.config import Settings
 from dirigent_core.connections import ConnectionInUse, remove_connection
@@ -77,6 +77,7 @@ from dirigent_core.plugins import PluginHost
 from dirigent_core.schemas import SchemaInUse, find_schema, remove_schema, schema_users, store_schema
 from dirigent_plugin import RemoteHandle
 from engineblocks import EchoOperator, EngineTestPlugin, RemoteOperator, reset_blocks
+from test_retention import NOW, a_run, started_by
 
 pytestmark = pytest.mark.postgres
 
@@ -2403,3 +2404,16 @@ async def test_a_worker_whose_clock_stands_off_the_databases_says_so(
     [warned] = [entry for entry in logs if entry.get("worker") == "ahead"]
     assert warned["log_level"] == "warning"
     assert warned["skew_ms"] > 100_000
+
+
+async def test_retention_keeps_the_chain_above_a_running_run_on_postgres(
+    pg_sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """The sweep's row lock and the chain it keeps meet in one statement only PostgreSQL runs."""
+    async with session_scope(pg_sessions) as session:
+        root = await a_run(session, finished_at=NOW, age=timedelta(days=40))
+        running = await a_run(session, finished_at=None)
+        await started_by(session, running, root)
+        swept = await retention.sweep(session, retention.Policy(runs=timedelta(days=30)), now=NOW)
+
+    assert swept.counts == {}
