@@ -245,6 +245,12 @@ PARAMETER_SCHEMA_INVALID = PARAMETER.define(
     "the pipeline's parameter schema is not itself valid JSON Schema ({problem}); apply a corrected document to fix it",
 )
 
+PARAMETER_REFERENCE_UNRESOLVABLE = PARAMETER.define(
+    "reference_unresolvable",
+    "the pipeline's parameter schema references {ref} at {at}, which resolves to nothing within the schema; "
+    "apply a corrected document to fix it",
+)
+
 PARAMETER_UNCHECKED = PARAMETER.define(
     "unchecked",
     "the parameters were not checked against the pipeline's parameter schema within {timeout}",
@@ -383,6 +389,12 @@ WORKER_TAGS_MISSING = DOCUMENT.define(
 PARAMS_SCHEMA_INVALID = DOCUMENT.define(
     "params_schema_invalid",
     "the parameter schema is not itself valid JSON Schema{at}: {detail}",
+)
+
+PARAMS_REFERENCE_UNRESOLVABLE = DOCUMENT.define(
+    "params_reference_unresolvable",
+    "the parameter schema references {ref} at {at}, which resolves to nothing within the schema; "
+    "a parameter schema reaches only its own definitions and the published JSON Schema drafts",
 )
 
 CARRIED_SCHEMA_INVALID = DOCUMENT.define(

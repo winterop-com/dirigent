@@ -40,6 +40,7 @@ from dirigent_common import (
     password_in,
     plain_fields_of,
     reference_targets,
+    unresolved_references,
     userinfo_in,
     validation_issue,
     validation_issues,
@@ -82,6 +83,7 @@ from dirigent_core.messages import (
     NO_FORMAT,
     NOT_A_MAPPING,
     NOT_YAML,
+    PARAMS_REFERENCE_UNRESOLVABLE,
     PARAMS_SCHEMA_INVALID,
     REFERENCE_BRACKET_INDEX,
     REFERENCE_ERROR_NOT_UPSTREAM,
@@ -594,10 +596,12 @@ def worker_routing_issues(definition: PipelineDefinition, carried: set[str]) -> 
 
 
 def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
-    """Check that the parameter schema a document declares is itself a JSON Schema.
+    """Check that the parameter schema a document declares is a JSON Schema whose every ``$ref`` resolves.
 
     Nothing else ever checks it, and a schema that is not one only fails when the first run
-    is created, from inside jsonschema, long after the document was stored.
+    is created, from inside jsonschema, long after the document was stored. A reference is
+    resolved as a run resolves it: within the schema and the published drafts, never against a
+    held schema or the network.
     """
     if not definition.params:
         return []
@@ -613,7 +617,10 @@ def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssu
                 detail=describe(error),
             )
         ]
-    return []
+    return [
+        ValidationIssue.of(PARAMS_REFERENCE_UNRESOLVABLE, location="params", ref=repr(ref), at=at)
+        for at, ref in unresolved_references(definition.params)
+    ]
 
 
 def _carried_secret_issues(definition: PipelineDefinition, catalog: Catalog) -> list[ValidationIssue]:

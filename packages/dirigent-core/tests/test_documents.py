@@ -819,8 +819,9 @@ def test_a_carried_schema_that_is_not_a_schema_is_refused_at_apply(host: PluginH
         "steps:\n  a: { block: test.echo, config: {value: hi, schema: ou-shape} }\n"
     )
     issues = validate_against_catalog(definition, host.catalog(), schemas=[])
-    assert [issue.location for issue in issues] == ["schemas.ou-shape"]
-    assert "not itself valid JSON Schema" in issues[0].message
+    assert [(issue.code, issue.location) for issue in issues] == [
+        ("document.carried_schema_invalid", "schemas.ou-shape")
+    ]
 
 
 def test_a_step_naming_a_connection_this_instance_lacks_is_refused(host: PluginHost) -> None:
@@ -1276,15 +1277,46 @@ def test_a_one_time_schedule_written_without_an_offset_is_read_in_its_own_zone()
     assert scheduled.at.utcoffset() == timedelta(hours=2)
 
 
+def test_a_parameter_schema_reaching_its_own_definitions_is_accepted_at_apply(host: PluginHost) -> None:
+    """A ``$ref`` into the schema's own ``$defs`` resolves exactly as it does when a run is created."""
+    definition = load_text(
+        "format: dirigent/v1\ncode: defined\n"
+        "params: {type: object, $defs: {day: {type: string}}, properties: {day: {$ref: '#/$defs/day'}}}\n"
+        "steps:\n  a: { block: test.echo }\n"
+        "triggers:\n  schedules:\n    - {code: daily, cron: '0 5 * * *', params: {day: monday}}\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
+@pytest.mark.parametrize(
+    ("ref", "held"),
+    [("#/$defs/nope", []), ("station-code", ["station-code"]), ("https://example.org/day.json", [])],
+    ids=["dangling-pointer", "held-schema", "address"],
+)
+def test_a_parameter_schema_reference_that_reaches_nothing_is_refused_at_apply(
+    host: PluginHost, ref: str, held: list[str]
+) -> None:
+    """A run resolves a parameter schema's references within the schema alone, so apply does too."""
+    definition = load_text(
+        "format: dirigent/v1\ncode: dangling\n"
+        f"params: {{type: object, properties: {{day: {{$ref: '{ref}'}}}}}}\n"
+        "steps:\n  a: { block: test.echo }\n"
+        "triggers:\n  schedules:\n    - {code: daily, cron: '0 5 * * *', params: {day: monday}}\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog(), schemas=held)
+    assert [(issue.code, issue.location) for issue in issues] == [("document.params_reference_unresolvable", "params")]
+    assert issues[0].params == {"ref": repr(ref), "at": "properties/day"}
+
+
 def test_a_parameter_schema_that_is_not_a_schema_is_refused_at_apply(host: PluginHost) -> None:
     """Nothing else checks it, and the first run would otherwise fail from inside jsonschema."""
     definition = load_text(
         "format: dirigent/v1\ncode: mistyped\nparams: {type: objcet}\nsteps:\n  a: { block: test.echo }\n"
     )
     issues = validate_against_catalog(definition, host.catalog())
-    assert [issue.location for issue in issues] == ["params"]
-    assert "not itself valid JSON Schema at type" in issues[0].message
-    assert "'objcet' is none of what this field takes: one of 'array', 'boolean'" in issues[0].message
+    assert [(issue.code, issue.location) for issue in issues] == [("document.params_schema_invalid", "params")]
+    assert issues[0].params["at"] == " at type"
+    assert "'objcet' is none of what this field takes: one of 'array', 'boolean'" in issues[0].params["detail"]
     offline = validate_against_catalog(definition, host.catalog(), check_blocks=False)
     assert [issue.location for issue in offline] == ["params"], "the offline path has no catalog and checks it anyway"
 

@@ -18,12 +18,16 @@ checked against a local shape it never meant.
 
 import re
 from collections.abc import Callable, Iterator
-from typing import Any, Final, cast
+from typing import TYPE_CHECKING, Any, Final, cast
 from urllib.parse import urljoin
 
+from jsonschema_specifications import REGISTRY as SPECIFICATIONS
 from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource, Unresolvable
 from referencing.jsonschema import DRAFT202012
+
+if TYPE_CHECKING:
+    from referencing._core import Resolver
 
 LOCAL_REFERENCES: Final[Registry[Any]] = Registry()
 
@@ -120,6 +124,67 @@ def reference_targets(schema: Any, lookup: Callable[[str], Any | None]) -> tuple
     return reached, unreached
 
 
+#: The 2020-12 keywords whose value is one subschema, a list of them, or a map of them, with
+#: the older drafts' ``definitions``.
+_ONE_SUBSCHEMA: Final = frozenset(
+    {
+        "additionalProperties",
+        "contains",
+        "contentSchema",
+        "else",
+        "if",
+        "items",
+        "not",
+        "propertyNames",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    }
+)
+_LIST_OF_SUBSCHEMAS: Final = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
+_MAP_OF_SUBSCHEMAS: Final = frozenset({"$defs", "definitions", "dependentSchemas", "patternProperties", "properties"})
+
+
+def unresolved_references(schema: Any, registry: Registry[Any] = LOCAL_REFERENCES) -> list[tuple[str, str]]:
+    """Every ``$ref`` in a schema that ``registry`` cannot resolve, as where it sits and what it says.
+
+    Each reference is looked up as a validator built over ``registry`` looks it up when an
+    evaluation reaches it: against the ``$id`` of the schema around it, with the bundled drafts
+    beside what the registry holds. Nothing is retrieved from the network. Where is the
+    slash-joined path of the subschema holding the ``$ref``, or ``(root)``.
+    """
+    root = DRAFT202012.create_resource(schema)
+    resolver = SPECIFICATIONS.combine(registry).resolver_with_root(root)
+    found: list[tuple[str, str]] = []
+    _collect_unresolved(schema, (), resolver, found)
+    return found
+
+
+def _collect_unresolved(
+    node: Any, path: tuple[str, ...], resolver: "Resolver[Any]", found: list[tuple[str, str]]
+) -> None:
+    """Add each unresolvable ``$ref`` under one subschema to ``found``."""
+    if not isinstance(node, dict):
+        return
+    schema = cast("dict[str, Any]", node)
+    resolver = resolver.in_subresource(DRAFT202012.create_resource(schema))
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        try:
+            resolver.lookup(ref)
+        except (Unresolvable, ValueError):
+            found.append(("/".join(path) or "(root)", ref))
+    for keyword, value in schema.items():
+        if keyword in _ONE_SUBSCHEMA:
+            _collect_unresolved(value, (*path, keyword), resolver, found)
+        elif keyword in _LIST_OF_SUBSCHEMAS and isinstance(value, list):
+            for index, item in enumerate(cast("list[Any]", value)):  # type: ignore[redundant-cast]
+                _collect_unresolved(item, (*path, keyword, str(index)), resolver, found)
+        elif keyword in _MAP_OF_SUBSCHEMAS and isinstance(value, dict):
+            for name, item in cast("dict[str, Any]", value).items():
+                _collect_unresolved(item, (*path, keyword, name), resolver, found)
+
+
 def _refs(node: Any) -> Iterator[str]:
     """Every ``$ref`` string under a node, depth first."""
     if isinstance(node, dict):
@@ -141,4 +206,5 @@ __all__ = [
     "outward_references",
     "reference_targets",
     "schema_code_of",
+    "unresolved_references",
 ]

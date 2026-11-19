@@ -160,8 +160,10 @@ def test_a_parameter_schema_cannot_make_the_process_fetch_a_url(monkeypatch: pyt
         params={"type": "object", "properties": {"day": {"$ref": "http://169.254.169.254/latest/meta-data/"}}},
         steps={"a": StepDefinition(block="test.echo")},
     )
-    with pytest.raises(ParameterError, match="parameter schema is not itself valid JSON Schema"):
+    with pytest.raises(ParameterError) as raised:
         definition.validate_params({"day": "x"}, base_format_checker())
+    assert raised.value.code == "parameter.reference_unresolvable"
+    assert raised.value.params == {"ref": "'http://169.254.169.254/latest/meta-data/'", "at": "properties/day"}
     assert asked == []
 
 
@@ -206,16 +208,19 @@ def test_a_parameter_schema_that_is_not_a_schema_refuses_the_run_rather_than_esc
         params={"type": "objcet"},
         steps={"a": StepDefinition(block="test.echo")},
     )
-    with pytest.raises(ParameterError, match="parameter schema is not itself valid JSON Schema"):
+    with pytest.raises(ParameterError) as raised:
         definition.validate_params({"day": "x"}, base_format_checker())
+    assert raised.value.code == "parameter.schema_invalid"
 
     dangling = PipelineDefinition(
         code="dangling",
         params={"type": "object", "properties": {"day": {"$ref": "#/$defs/nope"}}},
         steps={"a": StepDefinition(block="test.echo")},
     )
-    with pytest.raises(ParameterError, match="parameter schema is not itself valid JSON Schema"):
+    with pytest.raises(ParameterError) as raised:
         dangling.validate_params({"day": "x"}, base_format_checker())
+    assert raised.value.code == "parameter.reference_unresolvable"
+    assert raised.value.params == {"ref": "'#/$defs/nope'", "at": "properties/day"}
 
 
 def test_a_parameter_format_asserts_with_the_instances_checker() -> None:
