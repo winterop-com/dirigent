@@ -33,7 +33,7 @@ services:
       - prometheus:/prometheus
 
   tempo:
-    image: grafana/tempo:2.10.1@sha256:9371af1b75b4e057eb77f22dc4dd4d9176cd6985e29f181527be6723b7f29c41
+    image: grafana/tempo:3.1.1@sha256:64e2fbd56d9c2b3412a4b430a58ea59e91a670b1e75f920a0c702213ad145044
     restart: unless-stopped
     command: ["-config.file=/etc/tempo/tempo.yaml"]
     # The image runs as an unprivileged user that does not own a fresh named volume.
