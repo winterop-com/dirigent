@@ -39,7 +39,7 @@ services:
   # Mailpit accepts on 1025 and never relays: every message stops here, which is what makes
   # it safe to point a real `to` address at.
   mailpit:
-    image: ${DIRIGENT_MAILPIT_IMAGE:-axllent/mailpit:v1.21.8@sha256:81370195cd4a0eab9604d17c2617a7525b0486f9365555253b6c5376c6350f1a}
+    image: ${DIRIGENT_MAILPIT_IMAGE:-axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce}
     restart: unless-stopped
     environment:
       # Submission is unauthenticated and unencrypted, so the email connection sets
